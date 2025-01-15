@@ -1,5 +1,4 @@
 import axios from 'axios';
-import bcrypt from 'bcryptjs';
 
 interface User {
     username: string;
@@ -12,7 +11,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
 
 async function authenticateUser(username: string, password: string) {
     try {
-        const response = await axios.post(`${API_URL}/auth/authenticate`, { username, password });
+        const response = await axios.post(`${API_URL}/auth`, { username, password });
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
