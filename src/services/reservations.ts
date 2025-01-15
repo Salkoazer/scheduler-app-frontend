@@ -17,10 +17,12 @@ interface Reservation {
     author: string;
 }
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+
 export const createReservation = async (reservation: Reservation): Promise<boolean> => {
     try {
         const token = localStorage.getItem('token'); // Retrieve the token from local storage
-        const response = await axios.post('http://localhost:5000/api/reservations', reservation, {
+        const response = await axios.post(`${API_URL}/reservations`, reservation, {
             headers: {
                 'Authorization': `Bearer ${token}` // Include the token in the request headers
             }
@@ -36,12 +38,15 @@ export const fetchReservations = async (start: string, end: string): Promise<Res
     console.log(`Fetching reservations from ${start} to ${end}`);
     try {
         const token = localStorage.getItem('token'); // Retrieve the token from local storage
-        const response = await axios.get(`http://localhost:5000/api/reservations?start=${start}&end=${end}`, {
+        const response = await axios.get(`${API_URL}/reservations`, {
             headers: {
                 'Authorization': `Bearer ${token}` // Include the token in the request headers
+            },
+            params: {
+                start,
+                end
             }
         });
-        console.log('Reservations fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Failed to fetch reservations:', error);
