@@ -20,7 +20,9 @@
     "stream-browserify": "^3.0.0",
     "typescript": "^4.9.5",
     "vm-browserify": "^1.1.2",
-    "webpack-cli": "^6.0.1"
+    "webpack-cli": "^6.0.1",
+    "mongodb": "^5.7.0",
+    "mongoose": "^7.4.1"
   },
   "devDependencies": {
     "@babel/core": "^7.22.9",
