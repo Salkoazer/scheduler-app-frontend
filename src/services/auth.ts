@@ -15,11 +15,18 @@ const API_URL = (() => {
 
 async function authenticateUser(username: string, password: string) {
     try {
+        console.log(`Attempting to authenticate at: ${API_URL}/auth`);
         const response = await axios.post(`${API_URL}/auth`, { username, password });
+        console.log('Authentication response:', response.status);
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
-            console.error('Authentication failed:', error.response ? error.response.data : error.message);
+            console.error('Authentication failed:', error.response?.status, error.response?.data);
+            console.error('Request details:', {
+                url: error.config?.url,
+                method: error.config?.method,
+                data: error.config?.data
+            });
         } else {
             console.error('Authentication failed:', (error as Error).message);
         }
