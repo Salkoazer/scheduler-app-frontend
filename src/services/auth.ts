@@ -7,7 +7,11 @@ interface User {
 
 let isAuthenticated = false;
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+const API_URL = (() => {
+    const url = process.env.REACT_APP_API_URL;
+    console.log('Current API URL:', url || 'http://localhost:3000/api');
+    return url || 'http://localhost:3000/api';
+})();
 
 async function authenticateUser(username: string, password: string) {
     try {
