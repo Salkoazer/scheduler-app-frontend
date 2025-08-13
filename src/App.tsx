@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
-import Calendar from './components/Calendar';
-import NewReservation from './components/NewReservation';
+const Calendar = React.lazy(() => import('./components/Calendar'));
+const NewReservation = React.lazy(() => import('./components/NewReservation'));
 import { logout } from './services/auth';
 
 const App: React.FC = () => {
@@ -64,6 +64,7 @@ const App: React.FC = () => {
                     </div>
                 )}
             </div>
+            <React.Suspense fallback={<div>Loading…</div>}>
             <Routes>
                 <Route 
                     path="/" 
@@ -90,6 +91,7 @@ const App: React.FC = () => {
                     } 
                 />
             </Routes>
+            </React.Suspense>
         </BrowserRouter>
     );
 };
