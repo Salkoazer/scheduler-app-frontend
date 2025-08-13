@@ -14,7 +14,6 @@ body {
 
 .calendar-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
     background-color: #000;
@@ -22,6 +21,33 @@ body {
     border-radius: 5px;
     color: #fff;
 }
+
+.calendar-header .header-left,
+.calendar-header .header-center,
+.calendar-header .header-right {
+    display: flex;
+    align-items: center;
+}
+
+.calendar-header .header-left { flex: 1; }
+.calendar-header .header-center { flex: 1; justify-content: center; }
+.calendar-header .header-right { flex: 1; justify-content: flex-end; }
+
+.calendar-header .header-left .month-year {
+    display: inline-flex;
+    gap: 6px; /* tight spacing between month and year */
+}
+
+.calendar-header select,
+.calendar-header button {
+    height: 32px;
+}
+
+.calendar-header .header-center {
+    justify-content: center;
+}
+
+/* header-right is aligned via flex-end above */
 
 .calendar-grid {
     display: grid;

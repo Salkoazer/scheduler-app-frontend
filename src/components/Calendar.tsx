@@ -55,12 +55,12 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
         loadReservations();
     }, [currentDate]);
 
-    const handlePrevMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const handleMonthChange = (m: number) => {
+        setCurrentDate(new Date(currentDate.getFullYear(), m, 1));
     };
 
-    const handleNextMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    const handleYearChange = (y: number) => {
+        setCurrentDate(new Date(y, currentDate.getMonth(), 1));
     };
 
     const handleDayClick = (day: number) => {
@@ -115,8 +115,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
 
     const renderWeekDays = () => {
         const weekDays = [];
-        const today = new Date();
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         const dayOfWeek = firstDayOfMonth.getDay();
 
         for (let i = 0; i < 7; i++) {
@@ -158,14 +157,47 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
     return (
         <div className="calendar-container">
             <div className="calendar-header">
-                <button onClick={handlePrevMonth}>{translations.prevMonth}</button>
-                <span>{currentDate.toLocaleString(locale, { month: 'long' }).charAt(0).toUpperCase() + currentDate.toLocaleString(locale, { month: 'long' }).slice(1)} {currentDate.getFullYear()}</span>
-                <select value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)}>
-                    <option value="room 1">Room 1</option>
-                    <option value="room 2">Room 2</option>
-                </select>
-                <button onClick={() => handleNewReservation(null, false)}>{translations.newReservation}</button>
-                <button onClick={handleNextMonth}>{translations.nextMonth}</button>
+                <div className="header-left">
+                    {(() => {
+                        const monthNames = Array.from({ length: 12 }, (_, i) => {
+                            const name = new Date(2000, i, 1).toLocaleString(locale, { month: 'long' });
+                            return name.charAt(0).toUpperCase() + name.slice(1);
+                        });
+                        const thisYear = new Date().getFullYear();
+                        const years = Array.from({ length: 11 }, (_, i) => thisYear - 5 + i);
+                        return (
+                            <div className="month-year">
+                                <select
+                                    aria-label="Select month"
+                                    value={currentDate.getMonth()}
+                                    onChange={(e) => handleMonthChange(parseInt(e.target.value, 10))}
+                                >
+                                    {monthNames.map((label, idx) => (
+                                        <option key={idx} value={idx}>{label}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    aria-label="Select year"
+                                    value={currentDate.getFullYear()}
+                                    onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
+                                >
+                                    {years.map((y) => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        );
+                    })()}
+                </div>
+                <div className="header-center">
+                    <select aria-label="Select room" value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)}>
+                        <option value="room 1">Room 1</option>
+                        <option value="room 2">Room 2</option>
+                    </select>
+                </div>
+                <div className="header-right">
+                    <button onClick={() => handleNewReservation(null, false)}>{translations.newReservation}</button>
+                </div>
             </div>
             <div className="calendar-weekdays">
                 {renderWeekDays()}
