@@ -17,7 +17,14 @@ interface Reservation {
     author: string;
 }
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+const API_URL = (() => {
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) {
+        console.log('Reservations API URL (dev): /api');
+        return '/api';
+    }
+    return process.env.REACT_APP_API_URL || '/api';
+})();
 
 export const createReservation = async (reservation: Reservation): Promise<boolean> => {
     try {
@@ -25,7 +32,8 @@ export const createReservation = async (reservation: Reservation): Promise<boole
         const response = await axios.post(`${API_URL}/reservations`, reservation, {
             headers: {
                 'Authorization': `Bearer ${token}` // Include the token in the request headers
-            }
+            },
+            withCredentials: true
         });
         return response.status === 201;
     } catch (error) {
@@ -42,6 +50,7 @@ export const fetchReservations = async (start: string, end: string): Promise<Res
             headers: {
                 'Authorization': `Bearer ${token}` // Include the token in the request headers
             },
+            withCredentials: true,
             params: {
                 start,
                 end

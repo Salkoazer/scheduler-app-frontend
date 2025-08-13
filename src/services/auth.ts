@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 interface User {
     username: string;
     password: string;
@@ -8,28 +6,42 @@ interface User {
 let isAuthenticated = false;
 
 const API_URL = (() => {
+    const isLocalhost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+    if (isLocalhost) {
+        console.log('Current API URL (localhost): /api');
+        return '/api';
+    }
     const url = process.env.REACT_APP_API_URL;
-    console.log('Current API URL:', url || 'http://localhost:3000/api');
-    return url || 'http://localhost:3000/api';
+    const fallback = '/api';
+    console.log('Current API URL:', url || fallback);
+    return url || fallback;
 })();
 
 async function authenticateUser(username: string, password: string) {
     try {
         console.log(`Attempting to authenticate at: ${API_URL}/auth`);
-        const response = await axios.post(`${API_URL}/auth`, { username, password });
-        console.log('Authentication response:', response.status);
-        return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            console.error('Authentication failed:', error.response?.status, error.response?.data);
-            console.error('Request details:', {
-                url: error.config?.url,
-                method: error.config?.method,
-                data: error.config?.data
-            });
-        } else {
-            console.error('Authentication failed:', (error as Error).message);
+        const response = await fetch(`${API_URL}/auth`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+            credentials: 'include', // Ensure cookies are sent
+        });
+
+        if (!response.ok) {
+            console.error('Authentication failed:', response.status, await response.text());
+            return null;
         }
+
+        const data = await response.json();
+        console.log('Authentication response:', response.status);
+        if (data?.token) {
+            localStorage.setItem('token', data.token);
+        }
+        return data;
+    } catch (error) {
+        console.error('Authentication failed:', error);
         return null;
     }
 }
@@ -38,7 +50,6 @@ export const login = async (user: User): Promise<boolean> => {
     const authenticatedUser = await authenticateUser(user.username, user.password);
     if (authenticatedUser) {
         isAuthenticated = true;
-        localStorage.setItem('token', authenticatedUser.token); // Store the token in local storage
         return true;
     }
     return false;
@@ -48,7 +59,14 @@ export const isLoggedIn = (): boolean => {
     return isAuthenticated;
 };
 
-export const logout = (): void => {
-    isAuthenticated = false;
-    localStorage.removeItem('token'); // Remove the token from local storage
+export const logout = async (): Promise<void> => {
+    try {
+        await fetch(`${API_URL}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include', // Invalidate the cookie on the server
+        });
+        isAuthenticated = false;
+    } catch (error) {
+        console.error('Logout failed:', error);
+    }
 };

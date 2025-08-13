@@ -46,7 +46,7 @@ module.exports = {
         port: 9000,
         historyApiFallback: true, // Ensure that the server serves index.html for all routes
         proxy: {
-            '/api': 'http://localhost:5000' // Proxy API requests to the backend server
+            '/api': 'http://localhost:3000' // Proxy API requests to the backend server (avoid CORS in dev)
         }
     }
 };
