@@ -86,7 +86,7 @@ const App: React.FC = () => {
                     path="/new-reservation" 
                     element={
                         isAuthenticated ? 
-                        <NewReservation locale={locale} username={username || ''} /> : 
+                        <NewReservation locale={locale} /> : 
                         <Navigate to="/" replace />
                     } 
                 />

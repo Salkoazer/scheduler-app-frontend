@@ -27,8 +27,6 @@ export const reservationBaseSchema = z.object({
   responsablePerson: z.string().min(1, 'Responsible person is required'),
   event: z.string().min(1, 'Event is required'),
   eventClassification: z.string().min(1, 'Classification is required'),
-  author: z.string().min(1, 'Author is required'),
-  isActive: z.boolean(),
 });
 
 export const reservationPayloadSchema = reservationBaseSchema.extend({

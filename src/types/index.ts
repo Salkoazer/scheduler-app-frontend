@@ -26,6 +26,4 @@ export interface Reservation {
     date: Date;
     type: string;
     notes?: string;
-    isActive: boolean;
-    author: string;
 }

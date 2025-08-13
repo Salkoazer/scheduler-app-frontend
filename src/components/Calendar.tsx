@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Calendar.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
-import { Reservation } from '../types/index';
-import { fetchReservations } from '../services/reservations';
+import { fetchReservations, type ReservationListItem } from '../services/reservations';
 
 interface Translations {
     calendar: string;
@@ -26,9 +25,9 @@ interface CalendarProps {
 const Calendar: React.FC<CalendarProps> = ({ locale }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
-    const [reservations, setReservations] = useState<Reservation[]>([]);
+    const [reservations, setReservations] = useState<ReservationListItem[]>([]);
     const [error, setError] = useState<string | null>(null);
-    const [selectedReservations, setSelectedReservations] = useState<Reservation[]>([]);
+    const [selectedReservations, setSelectedReservations] = useState<ReservationListItem[]>([]);
     const [selectedRoom, setSelectedRoom] = useState<string>('room 1');
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
@@ -195,11 +194,11 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                         <hr />
                         <section>
                             <h3>{translations.activeReservations}</h3>
-                            {selectedReservations.filter(res => res.isActive).length > 0 ? (
-                                selectedReservations.filter(res => res.isActive).map(res => (
+                            {selectedReservations.filter(res => res.status === 'active').length > 0 ? (
+                                selectedReservations.filter(res => res.status === 'active').map(res => (
                                     <div className="reservation" key={res._id}>
                                         <p>{res.event}</p>
-                                        <p>{res.author}</p>
+                                        {res.author ? <p>{res.author}</p> : null}
                                     </div>
                                 ))
                             ) : (
@@ -209,11 +208,11 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                         <hr />
                         <section>
                             <h3>{translations.inactiveReservations}</h3>
-                            {selectedReservations.filter(res => !res.isActive).length > 0 ? (
-                                selectedReservations.filter(res => !res.isActive).map(res => (
+                            {selectedReservations.filter(res => res.status !== 'active').length > 0 ? (
+                                selectedReservations.filter(res => res.status !== 'active').map(res => (
                                     <div className="reservation" key={res._id}>
                                         <p>{res.event}</p>
-                                        <p>{res.author}</p>
+                                        {res.author ? <p>{res.author}</p> : null}
                                     </div>
                                 ))
                             ) : (

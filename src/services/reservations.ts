@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { csrfHeader, ensureCsrfToken } from './csrf';
 
+// Payload used when creating a reservation (client-side)
 interface Reservation {
     room: string;
     reservationNumber: string;
@@ -14,8 +15,18 @@ interface Reservation {
     date: Date;
     type: string;
     notes?: string;
-    isActive: boolean;
-    author: string;
+}
+
+// Shape returned by GET /reservations (server projection)
+export interface ReservationListItem {
+    _id?: string;
+    date: string;
+    room: string;
+    event: string;
+    type: string;
+    status?: string;
+    createdAt?: string;
+    author?: string;
 }
 
 const API_URL = (() => {
@@ -41,14 +52,14 @@ export const createReservation = async (reservation: Reservation): Promise<boole
     }
 };
 
-export const fetchReservations = async (start: string, end: string): Promise<Reservation[]> => {
+export const fetchReservations = async (start: string, end: string): Promise<ReservationListItem[]> => {
     console.log(`Fetching reservations from ${start} to ${end}`);
     try {
         const response = await axios.get(`${API_URL}/reservations`, {
             withCredentials: true,
             params: { start, end }
         });
-        return response.data;
+    return response.data as ReservationListItem[];
     } catch (error) {
         console.error('Failed to fetch reservations:', error);
         throw error;

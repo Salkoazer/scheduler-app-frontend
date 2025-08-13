@@ -11,7 +11,6 @@ import { reservationBaseSchema, reservationPayloadSchema } from '../validation/s
 
 interface NewReservationProps {
     locale: 'en' | 'pt';
-    username?: string; // Add username prop
 }
 
 interface DateEntry {
@@ -42,7 +41,7 @@ interface Translations {
     // ...other existing translation keys...
 }
 
-const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => {
+const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { room, selectedDate: initialSelectedDate, fromCalendarBox } = location.state || { 
@@ -77,7 +76,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
     const [date, setDate] = useState<Date | null>(parsedInitialDate);
     const [type, setType] = useState('event');
     const [notes, setNotes] = useState('');
-    const [author, setAuthor] = useState(username || ''); // Initialize with username prop
+    // author is set server-side from JWT
 
     const translations = locale === 'en' ? enTranslations : ptTranslations;
 
@@ -103,7 +102,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         // Validate base fields and each date entry with Zod
-        const baseValidation = reservationBaseSchema.safeParse({
+    const baseValidation = reservationBaseSchema.safeParse({
             room,
             reservationNumber,
             nif,
@@ -113,8 +112,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
             responsablePerson,
             event,
             eventClassification,
-            author,
-            isActive: true,
         });
         if (!baseValidation.success) {
             alert(baseValidation.error.errors[0]?.message || translations.reservationError);
@@ -142,9 +139,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
                 contact,
                 responsablePerson,
                 event,
-                eventClassification,
-                author, // Use the author state directly
-                isActive: true // Set isActive to true by default
+                eventClassification
             };
 
             const promises = dateEntries.map(entry => {
@@ -256,8 +251,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
             event,
             eventClassification,
             date,
-            type,
-            author // Include author in validation
+            type
         };
 
         // Log each field's value for debugging
@@ -287,9 +281,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
             contact,
             responsablePerson,
             event,
-            eventClassification,
-            author,
-            isActive: true,
+            eventClassification
         }).success;
 
         const zodEntriesOk = dateEntries.length > 0 && dateEntries.every((entry) =>
@@ -303,8 +295,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
                 responsablePerson,
                 event,
                 eventClassification,
-                author,
-                isActive: true,
                 date: entry.date,
                 type: entry.type as any,
                 notes: entry.notes,
