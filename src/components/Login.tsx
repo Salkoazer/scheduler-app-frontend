@@ -17,6 +17,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, locale }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        // simple client-side validation
+        if (!username.trim() || !password.trim()) {
+            setError(translations[locale].invalidCredentials);
+            return;
+        }
         try {
             const success = await login({ username, password });
             if (success) {
