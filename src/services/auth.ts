@@ -34,12 +34,10 @@ async function authenticateUser(username: string, password: string) {
             return null;
         }
 
-        const data = await response.json();
-        console.log('Authentication response:', response.status);
-        if (data?.token) {
-            localStorage.setItem('token', data.token);
-        }
-        return data;
+    const data = await response.json();
+    console.log('Authentication response:', response.status);
+    // Cookie is set by server; avoid storing token in localStorage
+    return data;
     } catch (error) {
         console.error('Authentication failed:', error);
         return null;

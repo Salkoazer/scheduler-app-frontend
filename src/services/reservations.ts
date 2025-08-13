@@ -28,11 +28,7 @@ const API_URL = (() => {
 
 export const createReservation = async (reservation: Reservation): Promise<boolean> => {
     try {
-        const token = localStorage.getItem('token'); // Retrieve the token from local storage
         const response = await axios.post(`${API_URL}/reservations`, reservation, {
-            headers: {
-                'Authorization': `Bearer ${token}` // Include the token in the request headers
-            },
             withCredentials: true
         });
         return response.status === 201;
@@ -45,16 +41,9 @@ export const createReservation = async (reservation: Reservation): Promise<boole
 export const fetchReservations = async (start: string, end: string): Promise<Reservation[]> => {
     console.log(`Fetching reservations from ${start} to ${end}`);
     try {
-        const token = localStorage.getItem('token'); // Retrieve the token from local storage
         const response = await axios.get(`${API_URL}/reservations`, {
-            headers: {
-                'Authorization': `Bearer ${token}` // Include the token in the request headers
-            },
             withCredentials: true,
-            params: {
-                start,
-                end
-            }
+            params: { start, end }
         });
         return response.data;
     } catch (error) {
