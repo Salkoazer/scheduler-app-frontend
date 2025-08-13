@@ -29,6 +29,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
     const [error, setError] = useState<string | null>(null);
     const [selectedReservations, setSelectedReservations] = useState<ReservationListItem[]>([]);
     const [selectedRoom, setSelectedRoom] = useState<string>('room 1');
+    const roomOptions = ['room 1', 'room 2', 'room 3'];
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
@@ -96,16 +97,33 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
 
         for (let i = 1; i <= daysInMonth; i++) {
             const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-            const reservation = reservations.find(res => new Date(res.date).toDateString() === date.toDateString() && res.room === selectedRoom);
+            const dayReservations = reservations.filter(res => new Date(res.date).toDateString() === date.toDateString());
+            const reservation = dayReservations.find(res => res.room === selectedRoom);
+
+            const hasR1 = dayReservations.some(res => res.room === 'room 1');
+            const hasR2 = dayReservations.some(res => res.room === 'room 2');
+            const hasR3 = dayReservations.some(res => res.room === 'room 3');
+            const showR1 = hasR1 && selectedRoom !== 'room 1';
+            const showR2 = hasR2 && selectedRoom !== 'room 2';
+            const showR3 = hasR3 && selectedRoom !== 'room 3';
+
+            const roomClass = reservation
+                ? (selectedRoom === 'room 1' ? 'r1' : selectedRoom === 'room 2' ? 'r2' : 'r3')
+                : '';
 
             days.push(
                 <div
                     key={i}
-                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${reservation ? 'reservation' : ''}`}
+                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${reservation ? 'reservation' : ''} ${roomClass}`}
                     onClick={() => handleDayClick(i)}
                 >
                     <span className="day-number">{i}</span>
                     {reservation && <div className="reservation-name">{reservation.event}</div>}
+                    <div className="room-indicators">
+                        {showR1 && <span className="room-dot r1" title="Room 1"></span>}
+                        {showR2 && <span className="room-dot r2" title="Room 2"></span>}
+                        {showR3 && <span className="room-dot r3" title="Room 3"></span>}
+                    </div>
                 </div>
             );
         }
@@ -191,9 +209,15 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                 </div>
                 <div className="header-center">
                     <select aria-label="Select room" value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)}>
-                        <option value="room 1">Room 1</option>
-                        <option value="room 2">Room 2</option>
+                        {roomOptions.map((r) => (
+                            <option key={r} value={r}>{r.replace('room ', 'Room ')}</option>
+                        ))}
                     </select>
+                    <div className="room-legend" aria-hidden>
+                        <div className="room-legend-item"><span className="room-dot r1"></span><span>Room 1</span></div>
+                        <div className="room-legend-item"><span className="room-dot r2"></span><span>Room 2</span></div>
+                        <div className="room-legend-item"><span className="room-dot r3"></span><span>Room 3</span></div>
+                    </div>
                 </div>
                 <div className="header-right">
                     <button onClick={() => handleNewReservation(null, false)}>{translations.newReservation}</button>
