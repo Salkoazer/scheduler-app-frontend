@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { login } from '../services/auth';
 import translations from '../locales';
 import './Login.css';
+import { loginSchema } from '../validation/schemas';
 
 interface LoginProps {
   onLogin: (username: string) => void;
@@ -17,9 +18,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, locale }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // simple client-side validation
-        if (!username.trim() || !password.trim()) {
-            setError(translations[locale].invalidCredentials);
+        // schema-based client-side validation
+        const parsed = loginSchema.safeParse({ username, password });
+        if (!parsed.success) {
+            setError(parsed.error.errors[0]?.message || translations[locale].invalidCredentials);
             return;
         }
         try {

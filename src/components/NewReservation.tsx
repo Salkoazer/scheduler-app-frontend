@@ -7,6 +7,7 @@ import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
 import { enUS, pt, Locale } from 'date-fns/locale';
 import { createReservation } from '../services/reservations';
+import { reservationBaseSchema, reservationPayloadSchema } from '../validation/schemas';
 
 interface NewReservationProps {
     locale: 'en' | 'pt';
@@ -101,7 +102,33 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isFormValid()) {
+        // Validate base fields and each date entry with Zod
+        const baseValidation = reservationBaseSchema.safeParse({
+            room,
+            reservationNumber,
+            nif,
+            producerName,
+            email,
+            contact,
+            responsablePerson,
+            event,
+            eventClassification,
+            author,
+            isActive: true,
+        });
+        if (!baseValidation.success) {
+            alert(baseValidation.error.errors[0]?.message || translations.reservationError);
+            return;
+        }
+        const entryValid = dateEntries.length > 0 && dateEntries.every((entry) =>
+            reservationPayloadSchema.safeParse({
+                ...baseValidation.data,
+                date: entry.date,
+                type: entry.type as any,
+                notes: entry.notes,
+            }).success
+        );
+        if (!entryValid) {
             alert(translations.reservationError);
             return;
         }
@@ -251,7 +278,40 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
         console.log('Date entries valid:', hasValidDateEntries);
         console.log('Date entries:', dateEntries);
 
-        const isValid = areMainFieldsFilled && isNifValid && hasValidDateEntries;
+        const zodBaseOk = reservationBaseSchema.safeParse({
+            room,
+            reservationNumber,
+            nif,
+            producerName,
+            email,
+            contact,
+            responsablePerson,
+            event,
+            eventClassification,
+            author,
+            isActive: true,
+        }).success;
+
+        const zodEntriesOk = dateEntries.length > 0 && dateEntries.every((entry) =>
+            reservationPayloadSchema.safeParse({
+                room,
+                reservationNumber,
+                nif,
+                producerName,
+                email,
+                contact,
+                responsablePerson,
+                event,
+                eventClassification,
+                author,
+                isActive: true,
+                date: entry.date,
+                type: entry.type as any,
+                notes: entry.notes,
+            }).success
+        );
+
+        const isValid = areMainFieldsFilled && isNifValid && hasValidDateEntries && zodBaseOk && zodEntriesOk;
         console.log('Form is valid:', isValid);
 
         return isValid;
