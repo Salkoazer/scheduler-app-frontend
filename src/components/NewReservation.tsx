@@ -101,6 +101,10 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale, username }) => 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isFormValid()) {
+            alert(translations.reservationError);
+            return;
+        }
         try {
             const commonData = {
                 room,
