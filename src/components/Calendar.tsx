@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Calendar.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
-import { fetchReservations, type ReservationListItem } from '../services/reservations';
+import { fetchReservations, updateReservationStatus, type ReservationListItem } from '../services/reservations';
 
 interface Translations {
     calendar: string;
@@ -55,6 +55,22 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
 
         loadReservations();
     }, [currentDate]);
+
+    // Helper to refresh reservations for the current month
+    const refreshMonthReservations = async () => {
+        const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+        const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+        try {
+            const fetchedReservations = await fetchReservations(startOfMonth, endOfMonth);
+            setReservations(fetchedReservations);
+            if (selectedDay !== null) {
+                const dayReservations = fetchedReservations.filter(res => new Date(res.date).toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay).toDateString() && res.room === selectedRoom);
+                setSelectedReservations(dayReservations);
+            }
+        } catch (e) {
+            console.error('Error refreshing reservations:', e);
+        }
+    };
 
     const handleMonthChange = (m: number) => {
         setCurrentDate(new Date(currentDate.getFullYear(), m, 1));
@@ -110,14 +126,16 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
             const roomClass = reservation
                 ? (selectedRoom === 'room 1' ? 'r1' : selectedRoom === 'room 2' ? 'r2' : 'r3')
                 : '';
+            const statusClass = reservation?.reservationStatus ? reservation.reservationStatus : '';
 
             days.push(
                 <div
                     key={i}
-                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${reservation ? 'reservation' : ''} ${roomClass}`}
+                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${reservation ? 'reservation' : ''} ${roomClass} ${statusClass}`}
                     onClick={() => handleDayClick(i)}
                 >
                     <span className="day-number">{i}</span>
+                    {reservation?.reservationStatus === 'flagged' && <span className="flag-corner" aria-hidden></span>}
                     {reservation && <div className="reservation-name">{reservation.event}</div>}
                     <div className="room-indicators">
                         {showR1 && <span className="room-dot r1" title="Room 1"></span>}
@@ -255,6 +273,22 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                     <div className="reservation" key={res._id}>
                                         <p>{res.event}</p>
                                         {res.author ? <p>{res.author}</p> : null}
+                                        <div>
+                                            <label style={{ marginRight: '6px' }}>Status:</label>
+                                            <select
+                                                value={res.reservationStatus || 'pre'}
+                                                onChange={async (e) => {
+                                                    const newStatus = e.target.value as 'pre' | 'confirmed' | 'flagged';
+                                                    if (!res._id) return;
+                                                    await updateReservationStatus(res._id, newStatus);
+                                                    await refreshMonthReservations();
+                                                }}
+                                            >
+                                                <option value="pre">Pre-reservation</option>
+                                                <option value="confirmed">Reservation</option>
+                                                <option value="flagged">Flagged (paid)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 ))
                             ) : (
@@ -269,6 +303,22 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                     <div className="reservation" key={res._id}>
                                         <p>{res.event}</p>
                                         {res.author ? <p>{res.author}</p> : null}
+                                        <div>
+                                            <label style={{ marginRight: '6px' }}>Status:</label>
+                                            <select
+                                                value={res.reservationStatus || 'pre'}
+                                                onChange={async (e) => {
+                                                    const newStatus = e.target.value as 'pre' | 'confirmed' | 'flagged';
+                                                    if (!res._id) return;
+                                                    await updateReservationStatus(res._id, newStatus);
+                                                    await refreshMonthReservations();
+                                                }}
+                                            >
+                                                <option value="pre">Pre-reservation</option>
+                                                <option value="confirmed">Reservation</option>
+                                                <option value="flagged">Flagged (paid)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 ))
                             ) : (

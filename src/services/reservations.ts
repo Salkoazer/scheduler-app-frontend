@@ -15,6 +15,7 @@ interface Reservation {
     date: Date;
     type: string;
     notes?: string;
+    reservationStatus?: 'pre' | 'confirmed' | 'flagged';
 }
 
 // Shape returned by GET /reservations (server projection)
@@ -27,6 +28,7 @@ export interface ReservationListItem {
     status?: string;
     createdAt?: string;
     author?: string;
+    reservationStatus?: 'pre' | 'confirmed' | 'flagged';
 }
 
 const API_URL = (() => {
@@ -63,5 +65,23 @@ export const fetchReservations = async (start: string, end: string): Promise<Res
     } catch (error) {
         console.error('Failed to fetch reservations:', error);
         throw error;
+    }
+};
+
+export const updateReservationStatus = async (
+    id: string,
+    reservationStatus: 'pre' | 'confirmed' | 'flagged'
+): Promise<boolean> => {
+    try {
+        await ensureCsrfToken();
+        const res = await axios.put(
+            `${API_URL}/reservations/${id}/status`,
+            { reservationStatus },
+            { withCredentials: true, headers: await csrfHeader() }
+        );
+        return res.status === 200;
+    } catch (e) {
+        console.error('Failed to update reservation status:', e);
+        throw e;
     }
 };

@@ -145,6 +145,24 @@ body {
     gap: 6px;
 }
 
+/* Reservation status styles */
+.calendar-day.reservation.confirmed.r1 { background-color: rgba(46, 134, 222, 0.28); }
+.calendar-day.reservation.confirmed.r2 { background-color: rgba(39, 174, 96, 0.28); }
+.calendar-day.reservation.confirmed.r3 { background-color: rgba(230, 126, 34, 0.28); }
+
+.calendar-day.reservation.flagged {
+    border-width: 2px;
+}
+.calendar-day .flag-corner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-top: 18px solid #2ecc71; /* green corner */
+    border-left: 18px solid transparent;
+}
+
 .popup {
     position: fixed;
     top: 0;

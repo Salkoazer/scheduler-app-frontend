@@ -19,6 +19,7 @@ interface DateEntry {
     event: string;  // Add this field
     hasNotes: boolean;
     notes: string;
+    reservationStatus: 'pre' | 'confirmed' | 'flagged';
 }
 
 interface Translations {
@@ -60,7 +61,8 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
             type: 'event',
             event: '',
             hasNotes: false,
-            notes: ''
+            notes: '',
+            reservationStatus: 'pre'
         }] : []
     );
     
@@ -102,7 +104,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         // Validate base fields and each date entry with Zod
-    const baseValidation = reservationBaseSchema.safeParse({
+        const baseValidation = reservationBaseSchema.safeParse({
             room,
             reservationNumber,
             nif,
@@ -147,7 +149,8 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                     ...commonData,
                     date: entry.date,
                     type: entry.type,
-                    notes: entry.notes
+                    notes: entry.notes,
+                    reservationStatus: entry.reservationStatus
                 };
                 return createReservation(reservationData);
             });
@@ -191,7 +194,8 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 type: 'event',
                 event: '',
                 hasNotes: false,
-                notes: ''
+                notes: '',
+                reservationStatus: 'pre'
             };
             setDateEntries([...dateEntries, newEntry]);
         }
@@ -219,6 +223,12 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const handleNotesToggle = (index: number) => {
         const newEntries = [...dateEntries];
         newEntries[index].hasNotes = !newEntries[index].hasNotes;
+        setDateEntries(newEntries);
+    };
+
+    const handleStatusChange = (index: number, value: 'pre' | 'confirmed' | 'flagged') => {
+        const newEntries = [...dateEntries];
+        newEntries[index].reservationStatus = value;
         setDateEntries(newEntries);
     };
 
@@ -413,6 +423,15 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                                 <option value="assembly">{translations.assembly}</option>
                                 <option value="disassembly">{translations.disassembly}</option>
                                 <option value="others">{translations.others}</option>
+                            </select>
+                            <select
+                                value={entry.reservationStatus}
+                                onChange={(e) => handleStatusChange(index, e.target.value as any)}
+                                title="Reservation status"
+                            >
+                                <option value="pre">Pre-reservation</option>
+                                <option value="confirmed">Reservation</option>
+                                <option value="flagged">Flagged (paid)</option>
                             </select>
                             <div className="placeholder-display">
                                 {event}
