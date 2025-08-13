@@ -4,7 +4,6 @@ import { csrfHeader, ensureCsrfToken } from './csrf';
 // Payload used when creating a reservation (client-side)
 interface Reservation {
     room: string;
-    reservationNumber: string;
     nif: string;
     producerName: string;
     email: string;

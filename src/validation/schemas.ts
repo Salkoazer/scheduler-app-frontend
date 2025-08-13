@@ -17,7 +17,6 @@ const nifRegex = /^[0-9]{9}$/;
 
 export const reservationBaseSchema = z.object({
   room: z.string().min(1, 'Room is required'),
-  reservationNumber: z.string().min(1, 'Reservation number is required'),
   nif: z
     .string()
     .regex(nifRegex, 'NIF must be 9 digits'),

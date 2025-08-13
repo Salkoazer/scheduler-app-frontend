@@ -64,7 +64,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         }] : []
     );
     
-    const [reservationNumber, setReservationNumber] = useState('');
     const [nif, setNif] = useState('');
     const [isValidNif, setIsValidNif] = useState<boolean | null>(null);
     const [producerName, setProducerName] = useState('');
@@ -104,7 +103,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         // Validate base fields and each date entry with Zod
         const baseValidation = reservationBaseSchema.safeParse({
             room,
-            reservationNumber,
             nif,
             producerName,
             email,
@@ -132,7 +130,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         try {
             const commonData = {
                 room,
-                reservationNumber,
                 nif,
                 producerName,
                 email,
@@ -243,8 +240,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
 
     const isFormValid = (): boolean => {
         // Check if all required fields are filled
-        const requiredFields = {
-            reservationNumber,
+    const requiredFields = {
             nif,
             producerName,
             email,
@@ -276,7 +272,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
 
         const zodBaseOk = reservationBaseSchema.safeParse({
             room,
-            reservationNumber,
             nif,
             producerName,
             email,
@@ -289,7 +284,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         const zodEntriesOk = dateEntries.length > 0 && dateEntries.every((entry) =>
             reservationPayloadSchema.safeParse({
                 room,
-                reservationNumber,
                 nif,
                 producerName,
                 email,
@@ -315,14 +309,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 <label>{translations.room}:</label>
                 <input type="text" value={room} readOnly />
             </div>
-            <div className="form-group">
-                <label>{translations.reservationNumber}:</label>
-                <input 
-                    type="text" 
-                    value={reservationNumber} 
-                    onChange={(e) => setReservationNumber(e.target.value)} 
-                />
-            </div>
+            {/* Reservation number removed */}
             <div className="form-group">
                 <label>{translations.nif}:</label>
                 <input 
