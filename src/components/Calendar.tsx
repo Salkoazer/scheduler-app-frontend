@@ -4,6 +4,7 @@ import './Calendar.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
 import { fetchReservations, updateReservationStatus, type ReservationListItem } from '../services/reservations';
+import Toast from './Toast';
 
 interface Translations {
     calendar: string;
@@ -32,6 +33,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
     const roomOptions = ['room 1', 'room 2', 'room 3'];
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const navigate = useNavigate();
 
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -126,7 +128,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
             const roomClass = reservation
                 ? (selectedRoom === 'room 1' ? 'r1' : selectedRoom === 'room 2' ? 'r2' : 'r3')
                 : '';
-            const statusClass = reservation?.reservationStatus ? reservation.reservationStatus : '';
+            const statusClass = reservation ? (reservation.reservationStatus ?? 'pre') : '';
 
             days.push(
                 <div
@@ -276,18 +278,43 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                         <div>
                                             <label style={{ marginRight: '6px' }}>Status:</label>
                                             <select
-                                                value={res.reservationStatus || 'pre'}
+                                                value={(!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed'}
                                                 onChange={async (e) => {
-                                                    const newStatus = e.target.value as 'pre' | 'confirmed' | 'flagged';
                                                     if (!res._id) return;
-                                                    await updateReservationStatus(res._id, newStatus);
-                                                    await refreshMonthReservations();
+                                                    const base = e.target.value as 'pre' | 'confirmed';
+                                                    const next = base === 'pre' ? 'pre' : (res.reservationStatus === 'flagged' ? 'flagged' : 'confirmed');
+                                                    try {
+                                                        await updateReservationStatus(res._id, next);
+                                                        await refreshMonthReservations();
+                                                        setToast({ message: 'Status updated', type: 'success' });
+                                                    } catch {
+                                                        setToast({ message: 'Failed to update status', type: 'error' });
+                                                    }
                                                 }}
                                             >
                                                 <option value="pre">Pre-reservation</option>
                                                 <option value="confirmed">Reservation</option>
-                                                <option value="flagged">Flagged (paid)</option>
                                             </select>
+                                            {res.reservationStatus && res.reservationStatus !== 'pre' && (
+                                                <label style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={res.reservationStatus === 'flagged'}
+                                                        onChange={async (e) => {
+                                                            if (!res._id) return;
+                                                            const next = e.target.checked ? 'flagged' as const : 'confirmed' as const;
+                                                            try {
+                                                                await updateReservationStatus(res._id, next);
+                                                                await refreshMonthReservations();
+                                                                setToast({ message: 'Status updated', type: 'success' });
+                                                            } catch {
+                                                                setToast({ message: 'Failed to update status', type: 'error' });
+                                                            }
+                                                        }}
+                                                    />
+                                                    <span>Flagged (paid)</span>
+                                                </label>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -306,18 +333,43 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                         <div>
                                             <label style={{ marginRight: '6px' }}>Status:</label>
                                             <select
-                                                value={res.reservationStatus || 'pre'}
+                                                value={(!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed'}
                                                 onChange={async (e) => {
-                                                    const newStatus = e.target.value as 'pre' | 'confirmed' | 'flagged';
                                                     if (!res._id) return;
-                                                    await updateReservationStatus(res._id, newStatus);
-                                                    await refreshMonthReservations();
+                                                    const base = e.target.value as 'pre' | 'confirmed';
+                                                    const next = base === 'pre' ? 'pre' : (res.reservationStatus === 'flagged' ? 'flagged' : 'confirmed');
+                                                    try {
+                                                        await updateReservationStatus(res._id, next);
+                                                        await refreshMonthReservations();
+                                                        setToast({ message: 'Status updated', type: 'success' });
+                                                    } catch {
+                                                        setToast({ message: 'Failed to update status', type: 'error' });
+                                                    }
                                                 }}
                                             >
                                                 <option value="pre">Pre-reservation</option>
                                                 <option value="confirmed">Reservation</option>
-                                                <option value="flagged">Flagged (paid)</option>
                                             </select>
+                                            {res.reservationStatus && res.reservationStatus !== 'pre' && (
+                                                <label style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={res.reservationStatus === 'flagged'}
+                                                        onChange={async (e) => {
+                                                            if (!res._id) return;
+                                                            const next = e.target.checked ? 'flagged' as const : 'confirmed' as const;
+                                                            try {
+                                                                await updateReservationStatus(res._id, next);
+                                                                await refreshMonthReservations();
+                                                                setToast({ message: 'Status updated', type: 'success' });
+                                                            } catch {
+                                                                setToast({ message: 'Failed to update status', type: 'error' });
+                                                            }
+                                                        }}
+                                                    />
+                                                    <span>Flagged (paid)</span>
+                                                </label>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -327,6 +379,13 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                         </section>
                     </div>
                 </div>
+            )}
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
             )}
         </div>
     );

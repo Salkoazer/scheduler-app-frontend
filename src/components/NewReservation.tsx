@@ -19,7 +19,6 @@ interface DateEntry {
     event: string;  // Add this field
     hasNotes: boolean;
     notes: string;
-    reservationStatus: 'pre' | 'confirmed' | 'flagged';
 }
 
 interface Translations {
@@ -62,7 +61,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
             event: '',
             hasNotes: false,
             notes: '',
-            reservationStatus: 'pre'
         }] : []
     );
     
@@ -149,8 +147,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                     ...commonData,
                     date: entry.date,
                     type: entry.type,
-                    notes: entry.notes,
-                    reservationStatus: entry.reservationStatus
+                    notes: entry.notes
                 };
                 return createReservation(reservationData);
             });
@@ -194,8 +191,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 type: 'event',
                 event: '',
                 hasNotes: false,
-                notes: '',
-                reservationStatus: 'pre'
+                notes: ''
             };
             setDateEntries([...dateEntries, newEntry]);
         }
@@ -226,11 +222,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         setDateEntries(newEntries);
     };
 
-    const handleStatusChange = (index: number, value: 'pre' | 'confirmed' | 'flagged') => {
-        const newEntries = [...dateEntries];
-        newEntries[index].reservationStatus = value;
-        setDateEntries(newEntries);
-    };
+    // No status handling in creation; server sets 'pre'.
 
     const handleNotesChange = (index: number, value: string) => {
         const newEntries = [...dateEntries];
@@ -424,15 +416,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                                 <option value="disassembly">{translations.disassembly}</option>
                                 <option value="others">{translations.others}</option>
                             </select>
-                            <select
-                                value={entry.reservationStatus}
-                                onChange={(e) => handleStatusChange(index, e.target.value as any)}
-                                title="Reservation status"
-                            >
-                                <option value="pre">Pre-reservation</option>
-                                <option value="confirmed">Reservation</option>
-                                <option value="flagged">Flagged (paid)</option>
-                            </select>
+                            {/* Status is always created as pre; controls removed for creation */}
                             <div className="placeholder-display">
                                 {event}
                             </div>
