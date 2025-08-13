@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { csrfHeader, ensureCsrfToken } from './csrf';
 
 interface Reservation {
     room: string;
@@ -28,8 +29,10 @@ const API_URL = (() => {
 
 export const createReservation = async (reservation: Reservation): Promise<boolean> => {
     try {
+        await ensureCsrfToken();
         const response = await axios.post(`${API_URL}/reservations`, reservation, {
-            withCredentials: true
+            withCredentials: true,
+            headers: await csrfHeader()
         });
         return response.status === 201;
     } catch (error) {

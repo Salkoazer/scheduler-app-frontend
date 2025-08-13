@@ -17,14 +17,19 @@ const API_URL = (() => {
     return url || fallback;
 })();
 
+import { csrfHeader, ensureCsrfToken } from './csrf';
+
 async function authenticateUser(username: string, password: string) {
     try {
         console.log(`Attempting to authenticate at: ${API_URL}/auth`);
+        await ensureCsrfToken();
+        const headers: any = {
+            'Content-Type': 'application/json',
+            ...(await csrfHeader())
+        };
         const response = await fetch(`${API_URL}/auth`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({ username, password }),
             credentials: 'include', // Ensure cookies are sent
         });
@@ -59,9 +64,11 @@ export const isLoggedIn = (): boolean => {
 
 export const logout = async (): Promise<void> => {
     try {
+        const headers: any = await csrfHeader();
         await fetch(`${API_URL}/auth/logout`, {
             method: 'POST',
             credentials: 'include', // Invalidate the cookie on the server
+            headers,
         });
         isAuthenticated = false;
     } catch (error) {
