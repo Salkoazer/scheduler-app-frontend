@@ -4,6 +4,7 @@ import './Calendar.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
 import { fetchReservations, updateReservationStatus, type ReservationListItem } from '../services/reservations';
+import * as XLSX from 'xlsx';
 import Toast from './Toast';
 
 interface Translations {
@@ -72,6 +73,40 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
         } catch (e) {
             console.error('Error refreshing reservations:', e);
         }
+    };
+
+    const handleExportMonth = () => {
+        // Build month range and filter reservations currently loaded
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0);
+        const inMonth = reservations.filter(r => {
+            const d = new Date(r.date);
+            return d >= start && d <= end;
+        });
+
+        // Shape rows for XLS
+        const rows = inMonth
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .map(r => ({
+                Date: new Date(r.date).toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }),
+                Room: r.room,
+                Event: r.event,
+                Type: r.type,
+                Status: r.status || '',
+                ReservationStatus: r.reservationStatus || 'pre',
+                Author: r.author || ''
+            }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reservations');
+
+        const monthName = new Date(2000, month, 1).toLocaleString(locale, { month: 'long' });
+        const fileName = `reservations_${monthName}_${year}.xls`;
+        XLSX.writeFile(wb, fileName, { bookType: 'xls' });
+        setToast({ message: 'Exported month to XLS', type: 'success' });
     };
 
     const handleMonthChange = (m: number) => {
@@ -241,6 +276,14 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                 </div>
                 <div className="header-right">
                     <button onClick={() => handleNewReservation(null, false)}>{translations.newReservation}</button>
+                    <button
+                        onClick={handleExportMonth}
+                        style={{ marginLeft: 8 }}
+                        aria-label="Download month XLS"
+                        title="Download month XLS"
+                    >
+                        ⬇
+                    </button>
                 </div>
             </div>
             <div className="calendar-weekdays">
