@@ -5,6 +5,7 @@ import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
 import { enUS, pt, Locale } from 'date-fns/locale';
 import { createReservation, clearReservationCache } from '../services/reservations';
+import Toast from './Toast';
 import { reservationBaseSchema, reservationPayloadSchema } from '../validation/schemas';
 
 interface NewReservationProps {
@@ -73,6 +74,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const [eventClassification, setEventClassification] = useState('allAges'); // Set default value
     const [type, setType] = useState('event');
     const [notes, setNotes] = useState('');
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     // author is set server-side from JWT
 
     const translations = locale === 'en' ? enTranslations : ptTranslations;
@@ -83,41 +85,41 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-    if (selectedDays.length === 0) { alert(translations.reservationError); return; }
+    if (selectedDays.length === 0) { setToast({ message: translations.reservationError, type: 'error' }); return; }
     const baseValidation = reservationBaseSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification });
-        if (!baseValidation.success) { alert(baseValidation.error.errors[0]?.message || translations.reservationError); return; }
+    if (!baseValidation.success) { setToast({ message: baseValidation.error.errors[0]?.message || translations.reservationError, type: 'error' }); return; }
         // Validate first day payload representative
         const firstDate = new Date(selectedDays[0] + 'T00:00:00.000Z');
     const payloadValidation = reservationPayloadSchema.safeParse({ ...baseValidation.data, date: firstDate, type, notes });
-        if (!payloadValidation.success) { alert(translations.reservationError); return; }
+        if (!payloadValidation.success) { setToast({ message: translations.reservationError, type: 'error' }); return; }
         try {
             const isoDays = selectedDays.map(d => new Date(d + 'T00:00:00.000Z'));
             isoDays.sort((a,b)=>a.getTime()-b.getTime());
             const reservationData = {
                 room,
-                nif,
-                producerName,
-                email,
-                contact,
-                responsablePerson,
+                nif: nif || undefined,
+                producerName: producerName || undefined,
+                email: email || undefined,
+                contact: contact || undefined,
+                responsablePerson: responsablePerson || undefined,
                 event,
-                eventClassification,
+                eventClassification: eventClassification || undefined,
                 dates: isoDays,
-                type,
-                notes
+                type: type || undefined,
+                notes: notes || undefined
             } as any;
             const success = await createReservation(reservationData);
             if (success) {
                 // Ensure calendar refetch isn't served stale cached month snapshot
                 clearReservationCache();
-                alert(translations.reservationSuccess);
+                setToast({ message: translations.reservationSuccess, type: 'success' });
                 navigate('/calendar', { state: { room } });
             } else {
-                alert(translations.reservationError);
+                setToast({ message: translations.reservationError, type: 'error' });
             }
         } catch (error) {
             console.error('Failed to submit reservation:', error);
-            alert(translations.reservationError);
+            setToast({ message: translations.reservationError, type: 'error' });
         }
     };
 
@@ -271,7 +273,8 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                     {translations.return}
                 </button>
             </div>
-        </form>
+    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </form>
     );
 };
 

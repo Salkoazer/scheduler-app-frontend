@@ -105,4 +105,7 @@
     ,"deleteUserConfirm":"Remover o utilizador {{USERNAME}}? Isto não pode ser desfeito."
     ,"preReservationOption":"Pré-reserva"
     ,"reservationOption":"Reserva"
+    ,"room1Label":"Coliseu"
+    ,"room2Label":"Coliseu Club"
+    ,"room3Label":"Palco Coliseu"
 }

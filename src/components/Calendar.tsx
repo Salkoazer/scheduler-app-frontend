@@ -60,6 +60,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
         return 'room 1';
     });
     const roomOptions = ['room 1', 'room 2', 'room 3'];
+    // Static room labels (no localization required)
     const roomLabels: Record<string,string> = {
         'room 1': 'Coliseu',
         'room 2': 'Coliseu Club',

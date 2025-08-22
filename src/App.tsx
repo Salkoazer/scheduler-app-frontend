@@ -228,10 +228,16 @@ const App: React.FC = () => {
                                             {dayClearNotifs.length > 0 && (
                                                 <button
                                                     style={{ fontSize:'0.55rem', padding:'2px 6px', background:'#eee', border:'1px solid #ccc', cursor:'pointer' }}
-                                                    onClick={async () => {
+                                                    onClick={async (e) => {
+                                                        const btn = e.currentTarget;
+                                                        if ((btn as any)._loading) return;
+                                                        (btn as any)._loading = true;
                                                         const ids = dayClearNotifs.map(n => n.id);
+                                                        const prev = dayClearNotifs;
                                                         setDayClearNotifs([]); // optimistic clear
-                                                        try { await consumeDayClearEvents(ids); } catch { /* revert on failure */ }
+                                                        try { await consumeDayClearEvents(ids); }
+                                                        catch { setDayClearNotifs(prev); }
+                                                        finally { (btn as any)._loading = false; }
                                                     }}
                                                 >{translations.notifMarkAllRead || 'Mark all read'}</button>
                                             )}

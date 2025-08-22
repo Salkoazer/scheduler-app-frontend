@@ -103,6 +103,9 @@
         ,"usernamePasswordRequired":"Username and password required"
         ,"closeWindow":"Close"
         ,"deleteUserConfirm":"Delete user {{USERNAME}}? This cannot be undone."
-        ,"preReservationOption":"Pre-reservation"
-        ,"reservationOption":"Reservation"
+    ,"preReservationOption":"Pre-reservation"
+    ,"reservationOption": "Reservation"
+    ,"room1Label": "Coliseu"
+    ,"room2Label": "Coliseu Club"
+    ,"room3Label": "Coliseu Stage"
 }
