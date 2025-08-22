@@ -30,13 +30,17 @@ export interface ReservationListItem {
     reservationStatus?: 'pre' | 'confirmed' | 'flagged';
 }
 
+// Build and normalize API base URL so that relative paths always start with a single leading slash
 const API_URL = (() => {
     const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-        console.log('Reservations API URL (dev): /api');
-        return '/api';
+    let base = isDev ? '/api' : (process.env.REACT_APP_API_URL || '/api');
+    if (!base.startsWith('http') && !base.startsWith('/')) {
+        base = '/' + base; // ensure leading slash for relative path
     }
-    return process.env.REACT_APP_API_URL || '/api';
+    // remove trailing slash (except root '/') for consistent concatenation
+    if (base.length > 1 && base.endsWith('/')) base = base.slice(0, -1);
+    if (isDev) console.log('Reservations API URL resolved to', base);
+    return base;
 })();
 
 export const createReservation = async (reservation: Reservation): Promise<boolean> => {
@@ -105,6 +109,29 @@ export const fetchReservationHistory = async (date: string, room: string): Promi
         return res.data as ReservationHistoryEvent[];
     } catch (e) {
         console.error('Failed to fetch reservation history:', e);
+        throw e;
+    }
+};
+
+// Full reservation document returned by GET /reservations/:id
+export interface ReservationDetail extends ReservationListItem {
+    room: string;
+    nif: string;
+    producerName: string;
+    email: string;
+    contact: string;
+    responsablePerson: string;
+    eventClassification: string;
+    notes?: string;
+    reservationStatus?: 'pre' | 'confirmed' | 'flagged';
+}
+
+export const fetchReservation = async (id: string): Promise<ReservationDetail> => {
+    try {
+        const res = await axios.get(`${API_URL}/reservations/${id}`, { withCredentials: true });
+        return res.data as ReservationDetail;
+    } catch (e) {
+    console.error('Failed to fetch reservation detail:', e, 'Base URL:', API_URL, 'ID:', id);
         throw e;
     }
 };
