@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './Calendar.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
@@ -48,7 +48,17 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     const [reservations, setReservations] = useState<ReservationListItem[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [selectedReservations, setSelectedReservations] = useState<ReservationListItem[]>([]);
-    const [selectedRoom, setSelectedRoom] = useState<string>('room 1');
+    const location = useLocation();
+    const [selectedRoom, setSelectedRoom] = useState<string>(() => {
+        try {
+            const stored = sessionStorage.getItem('selectedRoom');
+            if (stored) return stored;
+        } catch {}
+        // Fallback to room from navigation state if provided
+        const st: any = (location as any).state;
+        if (st && st.room) return st.room;
+        return 'room 1';
+    });
     const roomOptions = ['room 1', 'room 2', 'room 3'];
     const roomLabels: Record<string,string> = {
         'room 1': 'Coliseu',
@@ -442,6 +452,20 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     };
 
     const translations: Translations = locale === 'en' ? enTranslations : ptTranslations;
+
+    // Persist selectedRoom across navigation sessions within the tab
+    useEffect(() => {
+        try { sessionStorage.setItem('selectedRoom', selectedRoom); } catch {}
+    }, [selectedRoom]);
+
+    // If navigation provided a room (e.g., returning from NewReservation), adopt it
+    useEffect(() => {
+        const st: any = (location as any).state;
+        if (st && st.room && st.room !== selectedRoom) {
+            setSelectedRoom(st.room);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.state]);
 
     const isPastDate = (day: number) => {
         const selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);

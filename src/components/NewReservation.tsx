@@ -127,7 +127,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 // Ensure calendar refetch isn't served stale cached month snapshot
                 clearReservationCache();
                 alert(translations.reservationSuccess);
-                navigate('/calendar');
+                navigate('/calendar', { state: { room } });
             } else {
                 alert(translations.reservationError);
             }
@@ -138,7 +138,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     };
 
     const handleReturn = () => {
-        navigate('/calendar');
+        navigate('/calendar', { state: { room } });
     };
 
     const isPastDate = (date: Date) => {
