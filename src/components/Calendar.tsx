@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Calendar.css';
 import enTranslations from '../locales/en.json';
@@ -6,6 +6,8 @@ import ptTranslations from '../locales/pt.json';
 import { fetchReservations, updateReservationStatus, fetchReservationHistory, updateReservationNotes, deleteReservation, updateReservation, type ReservationListItem, type ReservationHistoryEvent } from '../services/reservations';
 import * as XLSX from 'xlsx';
 import Toast from './Toast';
+import DayCell from './DayCell';
+import DayPopup from './DayPopup';
 
 interface Translations {
     calendar: string;
@@ -258,55 +260,30 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
     };
 
     const renderCalendarDays = () => {
-        const days = [];
+        const cells: React.ReactNode[] = [];
         const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-
-        // Fill in the blanks for the days before the first day of the month
         for (let i = 0; i < firstDayOfMonth; i++) {
-            days.push(<div key={`blank-${i}`} className="calendar-day blank"></div>);
+            cells.push(<div key={`blank-${i}`} className="calendar-day blank" />);
         }
-
         for (let i = 1; i <= daysInMonth; i++) {
             const cellKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
             const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-            const dayReservations = reservations.filter(res => {
-                const datesArr: string[] = Array.isArray((res as any).dates) ? (res as any).dates : [];
-                return datesArr.some(d => d.slice(0,10) === cellKey);
-            });
-            const reservation = dayReservations.find(res => res.room === selectedRoom);
             const isToday = (new Date().toDateString() === date.toDateString());
-
-            const hasR1 = dayReservations.some(res => res.room === 'room 1');
-            const hasR2 = dayReservations.some(res => res.room === 'room 2');
-            const hasR3 = dayReservations.some(res => res.room === 'room 3');
-            const showR1 = hasR1 && selectedRoom !== 'room 1';
-            const showR2 = hasR2 && selectedRoom !== 'room 2';
-            const showR3 = hasR3 && selectedRoom !== 'room 3';
-
-            const roomClass = reservation
-                ? (selectedRoom === 'room 1' ? 'r1' : selectedRoom === 'room 2' ? 'r2' : 'r3')
-                : '';
-            const statusClass = reservation ? (reservation.reservationStatus ?? 'pre') : '';
-
-            days.push(
-                <div
+            cells.push(
+                <DayCell
                     key={i}
-                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${isToday ? 'today' : ''} ${reservation ? 'reservation' : ''} ${roomClass} ${statusClass}`}
-                    onClick={() => handleDayClick(i)}
-                >
-                    <span className="day-number">{i}</span>
-                    {reservation?.reservationStatus === 'flagged' && <span className="flag-corner" aria-hidden></span>}
-                    {reservation && <div className="reservation-name">{reservation.event}</div>}
-                    <div className="room-indicators">
-                        {showR1 && <span className="room-dot r1" title="Room 1"></span>}
-                        {showR2 && <span className="room-dot r2" title="Room 2"></span>}
-                        {showR3 && <span className="room-dot r3" title="Room 3"></span>}
-                    </div>
-                </div>
+                    day={i}
+                    date={date}
+                    cellKey={cellKey}
+                    reservations={reservations}
+                    selectedRoom={selectedRoom}
+                    isPast={isPastDate(i)}
+                    isToday={isToday}
+                    onClick={handleDayClick}
+                />
             );
         }
-
-        return days;
+        return cells;
     };
 
     const loadHistory = async () => {
@@ -430,367 +407,80 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
             <div className="calendar-grid">
                 {renderCalendarDays()}
             </div>
-            {selectedDay !== null && (
-                <div className="popup">
-                    <div className="popup-content">
-                        <h2>{translations.reservationDay} - {String(selectedDay).padStart(2,'0')}/{String(currentDate.getMonth()+1).padStart(2,'0')}/{currentDate.getFullYear()}</h2>
-                        {error && <div className="error-message">{error}</div>}
-                        <div className="popup-actions" style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                            {!isPastDate(selectedDay) && (
-                                <button
-                                    onClick={() => handleNewReservation(
-                                        new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay),
-                                        true
-                                    )}
-                                >
-                                    {translations.newReservation}
-                                </button>
-                            )}
-                            <button
-                                onClick={() => {
-                                    if (!historyOpen) {
-                                        loadHistory();
-                                    }
-                                    setHistoryOpen(o => !o);
-                                }}
-                            >
-                                {historyOpen ? (translations as any).hideHistory || 'Hide History' : (translations as any).history || 'History'}
-                            </button>
-                            <button onClick={closePopup}>{translations.close}</button>
-                        </div>
-                        <hr />
-                        {(() => {
-                            const reservationLabel = (translations as any).reservationSingular || 'Reservation';
-                            const preLabel = (translations as any).preReservations || 'Pre-Reservations';
-                            const reservationEntry = selectedReservations.find(r => r.reservationStatus && r.reservationStatus !== 'pre');
-                            const preEntries = selectedReservations.filter(r => !r.reservationStatus || r.reservationStatus === 'pre');
-                            const renderReservationCard = (res: ReservationListItem) => {
-                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
-                                return (
-                                    <div className="reservation" key={res._id}>
-                                        <p>{res.event}</p>
-                                        {res.author ? <p>{res.author}</p> : null}
-                                        <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:8, marginTop:4 }}>
-                                            <label style={{ marginRight: '6px' }}>{(translations as any).status || 'Status'}:</label>
-                                            <select
-                                                value={baseValue}
-                                                onChange={async (e) => {
-                                                    if (!res._id) return;
-                                                    const base = e.target.value as 'pre' | 'confirmed';
-                                                    const next = base === 'pre' ? 'pre' : (res.reservationStatus === 'flagged' ? 'flagged' : 'confirmed');
-                                                    try {
-                                                        await updateReservationStatus(res._id, next);
-                                                        await refreshMonthReservations();
-                                                        setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
-                                                    } catch (err: any) {
-                                                        if (err?.response?.status === 409) {
-                                                            setToast({ message: (translations as any).statusConflict || 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
-                                                        } else {
-                                                            setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
-                                                        }
-                                                    }
-                                                }}
-                                            >
-                                                <option value="pre">Pre-reservation</option>
-                                                <option value="confirmed">Reservation</option>
-                                            </select>
-                                            {res.reservationStatus && res.reservationStatus !== 'pre' && (
-                                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={res.reservationStatus === 'flagged'}
-                                                        onChange={async (e) => {
-                                                            if (!res._id) return;
-                                                            const next = e.target.checked ? 'flagged' as const : 'confirmed' as const;
-                                                            try {
-                                                                await updateReservationStatus(res._id, next);
-                                                                await refreshMonthReservations();
-                                                                setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
-                                                            } catch {
-                                                                setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
-                                                            }
-                                                        }}
-                                                    />
-                                                    <span>{(translations as any).flaggedPaid || 'Flagged (paid)'}</span>
-                                                </label>
-                                            )}
-                                        </div>
-                                        <div style={{ marginTop:8, display:'flex', flexDirection:'row', gap:6, flexWrap:'wrap' }}>
-                                            {(() => {
-                                                const canEdit = role === 'admin' || (role === 'staff' && username && res.author && username.toLowerCase() === res.author.toLowerCase());
-                                                return (
-                                                    <button
-                                                        style={{ padding:'4px 8px', fontSize:'0.7rem', opacity: canEdit ? 1 : 0.6 }}
-                                                        disabled={!canEdit}
-                                                        onClick={() => canEdit && toggleNotes(res)}
-                                                        title={notesState[res._id || '']?.open ? ((translations as any).closeNotesEditor || 'Close Notes') : ((translations as any).editNotes || 'Edit Notes')}
-                                                    >
-                                                        {notesState[res._id || '']?.open ? ((translations as any).closeNotesEditor || 'Close Notes') : ((translations as any).editNotes || 'Edit Notes')}
-                                                    </button>
-                                                );
-                                            })()}
-                                            <button style={{ padding:'4px 8px', fontSize:'0.75rem' }} onClick={() => navigate(`/reservation/${res._id}`)}>{(translations as any).view || 'View'}</button>
-                                        </div>
-                                        {!notesState[res._id || '']?.open && (res as any).notes && (
-                                            <div style={{ marginTop:4, fontSize:'0.65rem', whiteSpace:'pre-wrap', background:'#f9f9f9', border:'1px solid #eee', padding:4, borderRadius:4 }}>
-                                                {(res as any).notes}
-                                            </div>
-                                        )}
-                                        {notesState[res._id || '']?.open && (() => {
-                                            const canEdit = role === 'admin' || (role === 'staff' && username && res.author && username.toLowerCase() === res.author.toLowerCase());
-                                            const state = notesState[res._id || ''];
-                                            return (
-                                                <div style={{ marginTop:8 }}>
-                                                    {canEdit ? (
-                                                        <>
-                                                            <textarea
-                                                                style={{ width:'100%', minHeight:60, padding:6, border:'1px solid #bbb', borderRadius:4, resize:'vertical' }}
-                                                                value={state.draft}
-                                                                onChange={e => updateDraft(res._id!, e.target.value)}
-                                                            />
-                                                            <div style={{ display:'flex', gap:6, marginTop:4 }}>
-                                                                <button
-                                                                    style={{ padding:'4px 10px', fontSize:'0.7rem' }}
-                                                                    disabled={state.saving || state.draft === state.baseline}
-                                                                    onClick={() => saveNotes(res)}
-                                                                >{state.saving ? ((translations as any).saving || 'Saving...') : ((translations as any).save || 'Save')}</button>
-                                                                <button
-                                                                    style={{ padding:'4px 10px', fontSize:'0.7rem' }}
-                                                                    disabled={state.saving || state.draft === state.baseline}
-                                                                    onClick={() => resetDraft(res._id!)}
-                                                                >{(translations as any).reset || 'Reset'}</button>
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <div style={{ fontSize:'0.65rem', whiteSpace:'pre-wrap', background:'#f9f9f9', border:'1px solid #eee', padding:6, borderRadius:4 }}>
-                                                            {(res as any).notes || ''}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                );
-                            };
-                const renderPreCard = (res: ReservationListItem, anyConfirmed: boolean) => {
-                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
-                                return (
-                                    <div className="reservation pre-reservation" key={res._id} style={{ borderBottom: '1px solid #ddd', paddingBottom: 8, marginBottom: 8 }}>
-                                        <p>{res.event}</p>
-                                        {res.author ? <p>{res.author}</p> : null}
-                                        <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:8, marginTop:4 }}>
-                                            <label style={{ marginRight: '6px' }}>{(translations as any).status || 'Status'}:</label>
-                                            <select
-                                                value={baseValue}
-                                                disabled={baseValue === 'pre' && anyConfirmed}
-                                                onChange={async (e) => {
-                                                    if (!res._id) return;
-                                                    const base = e.target.value as 'pre' | 'confirmed';
-                                                    const next = base === 'pre' ? 'pre' : 'confirmed';
-                                                    try {
-                                                        await updateReservationStatus(res._id, next);
-                                                        await refreshMonthReservations();
-                                                        setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
-                                                    } catch (err: any) {
-                                                        if (err?.response?.status === 409) {
-                                                            setToast({ message: (translations as any).statusConflict || 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
-                                                        } else {
-                                                            setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
-                                                        }
-                                                    }
-                                                }}
-                                            >
-                                                <option value="pre">Pre-reservation</option>
-                                                <option value="confirmed" disabled={anyConfirmed}>Reservation</option>
-                                            </select>
-                                        </div>
-                                        <div style={{ marginTop:8, display:'flex', flexDirection:'row', gap:6, flexWrap:'wrap' }}>
-                                            {(() => {
-                                                const canEdit = role === 'admin' || (role === 'staff' && username && res.author && username.toLowerCase() === res.author.toLowerCase());
-                                                return (
-                                                    <button
-                                                        style={{ padding:'4px 8px', fontSize:'0.7rem', opacity: canEdit ? 1 : 0.6 }}
-                                                        disabled={!canEdit}
-                                                        onClick={() => canEdit && toggleNotes(res)}
-                                                        title={notesState[res._id || '']?.open ? ((translations as any).closeNotesEditor || 'Close Notes') : ((translations as any).editNotes || 'Edit Notes')}
-                                                    >
-                                                        {notesState[res._id || '']?.open ? ((translations as any).closeNotesEditor || 'Close Notes') : ((translations as any).editNotes || 'Edit Notes')}
-                                                    </button>
-                                                );
-                                            })()}
-                                            <button style={{ padding:'4px 8px', fontSize:'0.75rem' }} onClick={() => navigate(`/reservation/${res._id}`)}>{(translations as any).view || 'View'}</button>
-                                            {(() => {
-                                                const canDelete = (role === 'admin') || (role === 'staff' && username && res.author && username.toLowerCase() === res.author.toLowerCase());
-                                                if (!canDelete) return null;
-                                                const multiDay = Array.isArray((res as any).dates) && (res as any).dates.length > 1;
-                                                const targetDayKey = selectedDay !== null ? `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}` : null;
-                                                const thisDayIncluded = multiDay && targetDayKey ? (res as any).dates.some((d:string)=> d.slice(0,10) === targetDayKey) : false;
-                                                if (deleteChoiceFor === res._id) {
-                                                    // Choice UI
-                                                    return (
-                                                        <span style={{ display:'inline-flex', gap:4, flexWrap:'wrap' }}>
-                                                            {multiDay && thisDayIncluded && (
-                                                                <button
-                                                                    style={{ padding:'4px 8px', fontSize:'0.65rem', background:'#b36b00', color:'#fff' }}
-                                                                    onClick={async () => {
-                                                                        if (!res._id || !targetDayKey) return;
-                                                                        try {
-                                                                            const remaining = (res as any).dates.filter((d:string)=> d.slice(0,10) !== targetDayKey);
-                                                                            await updateReservation(res._id, { dates: remaining });
-                                                                            setDeleteChoiceFor(null);
-                                                                            await refreshMonthReservations();
-                                                                            setToast({ message: (translations as any).dayRemoved || 'Day removed', type: 'success' });
-                                                                        } catch {
-                                                                            setToast({ message: (translations as any).dayRemoveFailed || 'Failed removing day', type: 'error' });
-                                                                        }
-                                                                    }}
-                                                                >{(translations as any).removeThisDay || 'Remove this day'}</button>
-                                                            )}
-                                                            <button
-                                                                style={{ padding:'4px 8px', fontSize:'0.65rem', background:'#c62828', color:'#fff' }}
-                                                                onClick={async () => {
-                                                                    if (!res._id) return;
-                                                                    if (!window.confirm((translations as any).confirmDeletePreAll || 'Delete all days for this pre-reservation?')) return;
-                                                                    try {
-                                                                        await deleteReservation(res._id);
-                                                                        setNotesState(prev => { const copy = { ...prev }; delete copy[res._id!]; return copy; });
-                                                                        setDeleteChoiceFor(null);
-                                                                        await refreshMonthReservations();
-                                                                        setToast({ message: (translations as any).reservationDeleted || 'Reservation deleted', type: 'success' });
-                                                                    } catch {
-                                                                        setToast({ message: (translations as any).reservationDeleteFailed || 'Failed to delete reservation', type: 'error' });
-                                                                    }
-                                                                }}
-                                                            >{(translations as any).removeAllDays || 'Remove all days'}</button>
-                                                            <button
-                                                                style={{ padding:'4px 8px', fontSize:'0.65rem' }}
-                                                                onClick={() => setDeleteChoiceFor(null)}
-                                                            >{(translations as any).cancel || 'Cancel'}</button>
-                                                        </span>
-                                                    );
-                                                }
-                                                return (
-                                                    <button
-                                                        style={{ padding:'4px 8px', fontSize:'0.7rem', background:'#c62828', color:'#fff' }}
-                                                        onClick={() => {
-                                                            if (multiDay) {
-                                                                setDeleteChoiceFor(res._id || null);
-                                                            } else {
-                                                                if (!res._id) return;
-                                                                if (!window.confirm((translations as any).confirmDeletePre || 'Delete this pre-reservation?')) return;
-                                                                (async () => {
-                                                                    try {
-                                                                        await deleteReservation(res._id!);
-                                                                        setNotesState(prev => { const copy = { ...prev }; delete copy[res._id!]; return copy; });
-                                                                        await refreshMonthReservations();
-                                                                        setToast({ message: (translations as any).reservationDeleted || 'Reservation deleted', type: 'success' });
-                                                                    } catch {
-                                                                        setToast({ message: (translations as any).reservationDeleteFailed || 'Failed to delete reservation', type: 'error' });
-                                                                    }
-                                                                })();
-                                                            }
-                                                        }}
-                                                    >{(translations as any).remove || 'Remove'}</button>
-                                                );
-                                            })()}
-                                        </div>
-                                        {!notesState[res._id || '']?.open && (res as any).notes && (
-                                            <div style={{ marginTop:4, fontSize:'0.65rem', whiteSpace:'pre-wrap', background:'#f9f9f9', border:'1px solid #eee', padding:4, borderRadius:4 }}>
-                                                {(res as any).notes}
-                                            </div>
-                                        )}
-                                        {notesState[res._id || '']?.open && (() => {
-                                            const canEdit = role === 'admin' || (role === 'staff' && username && res.author && username.toLowerCase() === res.author.toLowerCase());
-                                            const state = notesState[res._id || ''];
-                                            return (
-                                                <div style={{ marginTop:8 }}>
-                                                    {canEdit ? (
-                                                        <>
-                                                            <textarea
-                                                                style={{ width:'100%', minHeight:60, padding:6, border:'1px solid #bbb', borderRadius:4, resize:'vertical' }}
-                                                                value={state.draft}
-                                                                onChange={e => updateDraft(res._id!, e.target.value)}
-                                                            />
-                                                            <div style={{ display:'flex', gap:6, marginTop:4 }}>
-                                                                <button
-                                                                    style={{ padding:'4px 10px', fontSize:'0.7rem' }}
-                                                                    disabled={state.saving || state.draft === state.baseline}
-                                                                    onClick={() => saveNotes(res)}
-                                                                >{state.saving ? ((translations as any).saving || 'Saving...') : ((translations as any).save || 'Save')}</button>
-                                                                <button
-                                                                    style={{ padding:'4px 10px', fontSize:'0.7rem' }}
-                                                                    disabled={state.saving || state.draft === state.baseline}
-                                                                    onClick={() => resetDraft(res._id!)}
-                                                                >{(translations as any).reset || 'Reset'}</button>
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <div style={{ fontSize:'0.65rem', whiteSpace:'pre-wrap', background:'#f9f9f9', border:'1px solid #eee', padding:6, borderRadius:4 }}>
-                                                            {(res as any).notes || ''}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                );
-                            };
-                            return (
-                                <>
-                                    <section>
-                                        <h3>{reservationLabel}</h3>
-                                        {reservationEntry ? renderReservationCard(reservationEntry) : <p>{(translations as any).noReservation || (locale === 'pt' ? 'Nenhuma reserva' : 'No reservation')}</p>}
-                                    </section>
-                                    <hr />
-                                    <section>
-                                        <h3>{preLabel}</h3>
-                                        {preEntries.length > 0 ? preEntries.map(r => renderPreCard(r, !!reservationEntry)) : <p>{(translations as any).noPreReservations || (locale === 'pt' ? 'Sem pré-reservas' : 'No pre-reservations')}</p>}
-                                    </section>
-                                </>
-                            );
-                        })()}
-                        {historyOpen && (
-                            <>
-                                <hr />
-                                <div className="history-panel" style={{ maxHeight: 180, overflowY: 'auto', marginTop: 16 }}>
-                                    {historyLoading && <div>{(translations as any).loadingHistory || 'Loading history...'}</div>}
-                                    {historyError && <div className="error-message">{historyError}</div>}
-                                    {!historyLoading && !historyError && historyEvents && historyEvents.length === 0 && (
-                                        <div>{(translations as any).noHistoryDay || 'No history for this day'}</div>
-                                    )}
-                                    {!historyLoading && !historyError && historyEvents && historyEvents.length > 0 && (
-                                        <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                            <thead>
-                                                <tr>
-                                                    <th style={{ textAlign: 'left' }}>{(translations as any).time || 'Time'}</th>
-                                                    <th style={{ textAlign: 'left' }}>{(translations as any).user || 'User'}</th>
-                                                    <th style={{ textAlign: 'left' }}>{(translations as any).event || 'Event'}</th>
-                                                    <th style={{ textAlign: 'left' }}>{(translations as any).action || 'Action'}</th>
-                                                    <th style={{ textAlign: 'left' }}>{(translations as any).from || 'From'}</th>
-                                                    <th style={{ textAlign: 'left' }}>{(translations as any).to || 'To'}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {historyEvents.map((ev, idx) => (
-                                                    <tr key={idx} style={ idx < historyEvents.length - 1 ? { borderBottom: '1px solid #eee' } : undefined }>
-                                                        <td>{new Date(ev.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
-                                                        <td>{ev.user || ''}</td>
-                                                        <td>{ev.event || ''}</td>
-                                                        <td>{ev.action}</td>
-                                                        <td>{ev.fromStatus || ''}</td>
-                                                        <td>{ev.toStatus || ''}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                        {/* per-reservation notes editors inline above */}
-                    </div>
-                </div>
-            )}
+            {selectedDay !== null && (() => {
+                const reservationEntry = selectedReservations.find(r => r.reservationStatus && r.reservationStatus !== 'pre');
+                const preEntries = selectedReservations.filter(r => !r.reservationStatus || r.reservationStatus === 'pre');
+                const targetDayKey = selectedDay !== null ? `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}` : null;
+                return (
+                    <DayPopup
+                        day={selectedDay}
+                        currentDate={currentDate}
+                        translations={translations}
+                        reservations={selectedReservations}
+                        reservationEntry={reservationEntry}
+                        preEntries={preEntries}
+                        anyConfirmed={!!reservationEntry}
+                        notesState={notesState}
+                        toggleNotes={toggleNotes}
+                        updateDraft={updateDraft}
+                        resetDraft={resetDraft}
+                        saveNotes={saveNotes}
+                        role={role}
+                        username={username}
+                        onNewReservation={() => handleNewReservation(new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay), true)}
+                        onClose={closePopup}
+                        onStatusChange={async (id, next) => {
+                            try {
+                                await updateReservationStatus(id, next);
+                                await refreshMonthReservations();
+                                setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
+                            } catch (err: any) {
+                                if (err?.response?.status === 409) {
+                                    setToast({ message: (translations as any).statusConflict || 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
+                                } else {
+                                    setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
+                                }
+                            }
+                        }}
+                        onFlagToggle={async (id, checked) => {
+                            try {
+                                await updateReservationStatus(id, checked ? 'flagged' : 'confirmed');
+                                await refreshMonthReservations();
+                                setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
+                            } catch {
+                                setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
+                            }
+                        }}
+                        onDelete={async (id) => {
+                            await deleteReservation(id);
+                            setNotesState(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+                            setDeleteChoiceFor(null);
+                            await refreshMonthReservations();
+                            setToast({ message: (translations as any).reservationDeleted || 'Reservation deleted', type: 'success' });
+                        }}
+                        onDeleteDay={async (id) => {
+                            if (!targetDayKey) return;
+                            const res = selectedReservations.find(r => r._id === id);
+                            if (!res) return;
+                            const remaining = (res as any).dates.filter((d: string) => d.slice(0,10) !== targetDayKey);
+                            await updateReservation(id, { dates: remaining });
+                            setDeleteChoiceFor(null);
+                            await refreshMonthReservations();
+                            setToast({ message: (translations as any).dayRemoved || 'Day removed', type: 'success' });
+                        }}
+                        deleteChoiceFor={deleteChoiceFor}
+                        setDeleteChoiceFor={setDeleteChoiceFor}
+                        targetDayKey={targetDayKey}
+                        historyOpen={historyOpen}
+                        toggleHistory={() => setHistoryOpen(o => !o)}
+                        historyLoading={historyLoading}
+                        historyError={historyError}
+                        historyEvents={historyEvents}
+                        loadHistory={loadHistory}
+                        navigateTo={(id) => navigate(`/reservation/${id}`)}
+                    />
+                );
+            })()}
             {toast && (
                 <Toast
                     message={toast.message}
