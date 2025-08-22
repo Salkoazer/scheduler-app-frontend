@@ -275,7 +275,7 @@ const App: React.FC = () => {
                                 setShowAccountMgmt(true); 
                                 setCreateError(null); 
                                 try { const data = await listUsers(); setUsers(data); setUserLoadError(null);} catch(e:any){ setUserLoadError(e.message);} 
-                            }}>Account Management</button>
+                            }}>{translations.accountManagement || 'Account Management'}</button>
                         )}
                         <button onClick={handleLogout}>Logout</button>
                     </div>
@@ -284,10 +284,10 @@ const App: React.FC = () => {
             {showAccountMgmt && role === 'admin' && (
                 <div style={{ position: 'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
                     <div style={{ background:'#fff', padding:20, borderRadius:4, minWidth:320 }}>
-                        <h3>Account Management</h3>
+                        <h3>{translations.accountManagement || 'Account Management'}</h3>
                         <div style={{ display:'flex', flexDirection:'column', gap:16, maxHeight:'70vh', overflowY:'auto' }}>
                             <section style={{ border:'1px solid #ddd', padding:10, borderRadius:4 }}>
-                                <h4 style={{ marginTop:0 }}>Create User</h4>
+                                <h4 style={{ marginTop:0 }}>{translations.createUserHeading || 'Create User'}</h4>
                                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                                     <input placeholder='Username' value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
                                     <input placeholder='Password' type='password' value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
@@ -300,23 +300,23 @@ const App: React.FC = () => {
                                         <button onClick={() => { setShowAccountMgmt(false); }}>Close</button>
                                         <button onClick={async () => { 
                                             setCreateError(null); 
-                                            if (!newUser.username || !newUser.password) { setCreateError('Username and password required'); return; }
+                                            if (!newUser.username || !newUser.password) { setCreateError(translations.usernamePasswordRequired || 'Username and password required'); return; }
                                             try { 
                                                 await createUser(newUser.username, newUser.password, newUser.role); 
-                                                setAppToast({ message: 'User created', type: 'success' });
+                                                setAppToast({ message: translations.userCreated || 'User created', type: 'success' });
                                                 setNewUser({ username:'', password:'', role:'staff' });
                                                 // Refresh list
                                                 const data = await listUsers(); setUsers(data);
                                                 setShowAccountMgmt(false); // close after success
                                             } catch(e:any){ 
-                                                setAppToast({ message: e.message || 'Failed creating user', type: 'error' }); 
+                                                setAppToast({ message: e.message || translations.failedCreatingUser || 'Failed creating user', type: 'error' }); 
                                             }
                                         }}>Create</button>
                                     </div>
                                 </div>
                             </section>
                             <section style={{ border:'1px solid #ddd', padding:10, borderRadius:4 }}>
-                                <h4 style={{ marginTop:0 }}>Existing Users</h4>
+                                <h4 style={{ marginTop:0 }}>{translations.existingUsersHeading || 'Existing Users'}</h4>
                                 {userLoadError && <div style={{ color:'red' }}>{userLoadError}</div>}
                                 <ul style={{ listStyle:'none', padding:0, margin:0, display:'flex', flexDirection:'column', gap:4 }}>
                                     {users.map(u => (
@@ -349,19 +349,19 @@ const App: React.FC = () => {
                                                         password: editUser.password || undefined,
                                                         role: editUser.role
                                                     });
-                                                    setAppToast({ message: 'User updated', type: 'success' });
+                                                    setAppToast({ message: translations.userUpdated || 'User updated', type: 'success' });
                                                     const data = await listUsers(); setUsers(data);
                                                     setEditUser(null);
-                                                } catch(e:any){ setAppToast({ message: e.message || 'Update failed', type:'error' }); }
+                                                } catch(e:any){ setAppToast({ message: e.message || translations.updateFailed || 'Update failed', type:'error' }); }
                                             }}>Save</button>
                                             <button style={{ background:'#b30000', color:'#fff' }} onClick={() => { 
-                                                if (editUser.original === username) { setAppToast({ message: 'Cannot delete your own account', type: 'error' }); return; }
-                                                if (confirm(`Delete user ${editUser.original}? This cannot be undone.`)) {
+                                                if (editUser.original === username) { setAppToast({ message: translations.cannotDeleteSelf || 'Cannot delete your own account', type: 'error' }); return; }
+                                                if (confirm((translations.deleteUserConfirm || 'Delete user {{USERNAME}}? This cannot be undone.').replace('{{USERNAME}}', editUser.original))) {
                                                     deleteUser(editUser.original).then(async () => {
-                                                        setAppToast({ message: 'User deleted', type: 'success' });
+                                                        setAppToast({ message: translations.userDeleted || 'User deleted', type: 'success' });
                                                         const data = await listUsers(); setUsers(data);
                                                         setEditUser(null);
-                                                    }).catch(e => setAppToast({ message: e.message || 'Delete failed', type:'error' }));
+                                                    }).catch(e => setAppToast({ message: e.message || translations.deleteFailed || 'Delete failed', type:'error' }));
                                                 }
                                             }}>Delete</button>
                                         </div>
