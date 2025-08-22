@@ -59,5 +59,27 @@
     "statusUpdateFailed": "Failed to update status",
     "statusConflict": "Another confirmed/flagged reservation exists for this day & room",
     "remove": "Remove",
-    "fetchReservationsError": "Failed to fetch reservations"
+    "fetchReservationsError": "Failed to fetch reservations",
+    "adminNotes":"Admin Notes",
+    "save":"Save",
+    "saving":"Saving...",
+    "notesUpdated": "Notes updated",
+    "notesUpdateFailed": "Failed to update notes",
+    "editNotes": "Edit Notes",
+    "closeNotesEditor": "Close Notes",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "saved": "Saved",
+    "saveFailed": "Save failed",
+    "nothingToSave": "Nothing to save",
+    "discreteDays": "Select days",
+    "clear": "Clear",
+    "addDaysHint": "Pick dates (use field above to add more)",
+    "daysSelected": "days selected",
+    "removeDay": "Remove day"
+    ,"removeThisDay":"Remove this day"
+    ,"removeAllDays":"Remove all days"
+    ,"dayRemoved":"Day removed"
+    ,"dayRemoveFailed":"Failed removing day"
+    ,"confirmDeletePreAll":"Delete ALL days for this pre-reservation?"
 }

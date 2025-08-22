@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
-const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt' }> }>);
+const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
 import { logout, getSession, createUser, listUsers, updateUser, deleteUser } from './services/auth';
 
 const App: React.FC = () => {
@@ -226,7 +226,7 @@ const App: React.FC = () => {
                     path="/calendar" 
                     element={
                         isAuthenticated ? 
-                        <Calendar locale={locale} /> : 
+                        <Calendar locale={locale} username={username} role={role} /> : 
                         <Navigate to="/" replace />
                     } 
                 />
@@ -242,7 +242,7 @@ const App: React.FC = () => {
                     path="/reservation/:id"
                     element={
                         isAuthenticated ?
-                        <ReservationDetail locale={locale} /> :
+                        <ReservationDetail locale={locale} username={username} role={role} /> :
                         <Navigate to="/" replace />
                     }
                 />

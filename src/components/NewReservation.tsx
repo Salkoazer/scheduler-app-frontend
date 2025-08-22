@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
 import './NewReservation.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
@@ -13,13 +11,7 @@ interface NewReservationProps {
     locale: 'en' | 'pt';
 }
 
-interface DateEntry {
-    date: Date;
-    type: string;
-    event: string;  // Add this field
-    hasNotes: boolean;
-    notes: string;
-}
+// Using discrete day selection (chips) similar to ReservationDetail; a single reservation with dates[]
 
 interface Translations {
     calendar: string;
@@ -53,16 +45,13 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     // Properly parse the ISO string date
     const parsedInitialDate = initialSelectedDate ? new Date(initialSelectedDate) : null;
     
-    const [selectedDate, setSelectedDate] = useState<Date | null>(parsedInitialDate);
-    const [dateEntries, setDateEntries] = useState<DateEntry[]>(
-        parsedInitialDate && fromCalendarBox ? [{
-            date: parsedInitialDate,
-            type: 'event',
-            event: '',
-            hasNotes: false,
-            notes: '',
-        }] : []
-    );
+    const [selectedDays, setSelectedDays] = useState<string[]>(() => {
+        if (parsedInitialDate && fromCalendarBox) {
+            return [parsedInitialDate.toISOString().slice(0,10)];
+        }
+        return [];
+    }); // YYYY-MM-DD
+    const [pendingDay, setPendingDay] = useState<string>('');
     
     const [nif, setNif] = useState('');
     const [isValidNif, setIsValidNif] = useState<boolean | null>(null);
@@ -72,7 +61,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const [responsablePerson, setResponsablePerson] = useState('');
     const [event, setEvent] = useState('');
     const [eventClassification, setEventClassification] = useState('allAges'); // Set default value
-    const [date, setDate] = useState<Date | null>(parsedInitialDate);
     const [type, setType] = useState('event');
     const [notes, setNotes] = useState('');
     // author is set server-side from JWT
@@ -100,35 +88,17 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Validate base fields and each date entry with Zod
-        const baseValidation = reservationBaseSchema.safeParse({
-            room,
-            nif,
-            producerName,
-            email,
-            contact,
-            responsablePerson,
-            event,
-            eventClassification,
-        });
-        if (!baseValidation.success) {
-            alert(baseValidation.error.errors[0]?.message || translations.reservationError);
-            return;
-        }
-        const entryValid = dateEntries.length > 0 && dateEntries.every((entry) =>
-            reservationPayloadSchema.safeParse({
-                ...baseValidation.data,
-                date: entry.date,
-                type: entry.type as any,
-                notes: entry.notes,
-            }).success
-        );
-        if (!entryValid) {
-            alert(translations.reservationError);
-            return;
-        }
+        if (selectedDays.length === 0) { alert(translations.reservationError); return; }
+        const baseValidation = reservationBaseSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification });
+        if (!baseValidation.success) { alert(baseValidation.error.errors[0]?.message || translations.reservationError); return; }
+        // Validate first day payload representative
+        const firstDate = new Date(selectedDays[0] + 'T00:00:00.000Z');
+    const payloadValidation = reservationPayloadSchema.safeParse({ ...baseValidation.data, date: firstDate, type, notes });
+        if (!payloadValidation.success) { alert(translations.reservationError); return; }
         try {
-            const commonData = {
+            const isoDays = selectedDays.map(d => new Date(d + 'T00:00:00.000Z'));
+            isoDays.sort((a,b)=>a.getTime()-b.getTime());
+            const reservationData = {
                 room,
                 nif,
                 producerName,
@@ -136,28 +106,13 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 contact,
                 responsablePerson,
                 event,
-                eventClassification
-            };
-
-            const promises = dateEntries.map(entry => {
-                const reservationData = {
-                    ...commonData,
-                    date: entry.date,
-                    type: entry.type,
-                    notes: entry.notes
-                };
-                return createReservation(reservationData);
-            });
-
-            const results = await Promise.all(promises);
-            const allSuccess = results.every(success => success);
-
-            if (allSuccess) {
-                alert(translations.reservationSuccess);
-                navigate('/calendar');
-            } else {
-                alert(translations.reservationError);
-            }
+                eventClassification,
+                dates: isoDays,
+                type,
+                notes
+            } as any;
+            const success = await createReservation(reservationData);
+            if (success) { alert(translations.reservationSuccess); navigate('/calendar'); } else { alert(translations.reservationError); }
         } catch (error) {
             console.error('Failed to submit reservation:', error);
             alert(translations.reservationError);
@@ -174,83 +129,11 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         return date < today;
     };
 
-    const handleDateSelection = (selectedDate: Date) => {
-        if (isPastDate(selectedDate)) {
-            return;
-        }
-
-        // Check if a date entry already exists for the selected date
-        const dateExists = dateEntries.some(entry => entry.date.toDateString() === selectedDate.toDateString());
-        if (!dateExists) {
-            // Create a new date entry
-            const newEntry: DateEntry = {
-                date: selectedDate,
-                type: 'event',
-                event: '',
-                hasNotes: false,
-                notes: ''
-            };
-            setDateEntries([...dateEntries, newEntry]);
-        }
-
-        setDate(selectedDate);
-    };
-
-    const handleRemoveEntry = (index: number) => {
-        const newEntries = dateEntries.filter((_, i) => i !== index);
-        setDateEntries(newEntries);
-    };
-
-    const handleTypeChange = (index: number, value: string) => {
-        const newEntries = [...dateEntries];
-        newEntries[index].type = value;
-        setDateEntries(newEntries);
-    };
-
-    const handleEventChange = (index: number, value: string) => {
-        const newEntries = [...dateEntries];
-        newEntries[index].event = value;
-        setDateEntries(newEntries);
-    };
-
-    const handleNotesToggle = (index: number) => {
-        const newEntries = [...dateEntries];
-        newEntries[index].hasNotes = !newEntries[index].hasNotes;
-        setDateEntries(newEntries);
-    };
-
-    // No status handling in creation; server sets 'pre'.
-
-    const handleNotesChange = (index: number, value: string) => {
-        const newEntries = [...dateEntries];
-        newEntries[index].notes = value;
-        setDateEntries(newEntries);
-    };
-
-    // Add effect to update all date entries when event changes
-    useEffect(() => {
-        if (dateEntries.length > 0) {
-            const updatedEntries = dateEntries.map(entry => ({
-                ...entry,
-                event: event // Sync the main event field with all entries
-            }));
-            setDateEntries(updatedEntries);
-        }
-    }, [event]); // Update whenever event changes
+    // Effect not needed for per-entry sync; single event field used for whole reservation
 
     const isFormValid = (): boolean => {
         // Check if all required fields are filled
-    const requiredFields = {
-            nif,
-            producerName,
-            email,
-            contact,
-            responsablePerson,
-            event,
-            eventClassification,
-            date,
-            type
-        };
+    const requiredFields = { nif, producerName, email, contact, responsablePerson, event, eventClassification, type };
 
         // Log each field's value for debugging
         console.log('Form validation:', requiredFields);
@@ -261,14 +144,12 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
         
         const isNifValid = isValidNif === true;
         
-        const hasValidDateEntries = dateEntries.length > 0 && 
-            dateEntries.every(entry => entry.type && entry.type.trim() !== '');
+    const hasValidDateEntries = selectedDays.length > 0;
 
         // Log validation results
         console.log('Fields filled:', areMainFieldsFilled);
         console.log('NIF valid:', isNifValid);
-        console.log('Date entries valid:', hasValidDateEntries);
-        console.log('Date entries:', dateEntries);
+    console.log('Date entries valid:', hasValidDateEntries);
 
         const zodBaseOk = reservationBaseSchema.safeParse({
             room,
@@ -281,21 +162,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
             eventClassification
         }).success;
 
-        const zodEntriesOk = dateEntries.length > 0 && dateEntries.every((entry) =>
-            reservationPayloadSchema.safeParse({
-                room,
-                nif,
-                producerName,
-                email,
-                contact,
-                responsablePerson,
-                event,
-                eventClassification,
-                date: entry.date,
-                type: entry.type as any,
-                notes: entry.notes,
-            }).success
-        );
+    const zodEntriesOk = selectedDays.length > 0 && reservationPayloadSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification, date: new Date(selectedDays[0] + 'T00:00:00.000Z'), type: type as any, notes }).success;
 
         const isValid = areMainFieldsFilled && isNifValid && hasValidDateEntries && zodBaseOk && zodEntriesOk;
         console.log('Form is valid:', isValid);
@@ -304,7 +171,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     };
 
     return (
-        <form className="new-reservation-form" onSubmit={handleSubmit}>
+    <form className="new-reservation-form" onSubmit={handleSubmit}>
             <div className="form-group">
                 <label>{translations.room}:</label>
                 <input type="text" value={room} readOnly />
@@ -371,69 +238,53 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                     {/* Add more options here if needed */}
                 </select>
             </div>
-            <div className="form-group datepicker-group">
+            <div className="form-group">
                 <label>{translations.scheduledDays}:</label>
-                <DatePicker
-                    selected={date}
-                    onChange={handleDateSelection}
-                    inline
-                    dateFormat="dd/MM/yyyy"
-                    className="date-picker"
-                    calendarClassName="mini-calendar"
-                    locale={locale === 'pt' ? pt : enUS}
-                    minDate={new Date()} // Prevent selecting past dates
-                />
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                    <input
+                        type="date"
+                        value={pendingDay}
+                        min={new Date().toISOString().slice(0,10)}
+                        onFocus={() => {
+                            if (!pendingDay && selectedDays.length>0) {
+                                // Bias picker to last selectedDay month by temporarily setting then clearing (if needed)
+                                setPendingDay(selectedDays[selectedDays.length-1]);
+                            }
+                        }}
+                        onChange={e => setPendingDay(e.target.value)}
+                    />
+                    <button
+                        type="button"
+                        disabled={!pendingDay || selectedDays.includes(pendingDay) || new Date(pendingDay) < new Date(new Date().toISOString().slice(0,10))}
+                        onClick={() => { if (!pendingDay) return; if (selectedDays.includes(pendingDay)) return; setSelectedDays(prev => [...prev, pendingDay].sort()); setPendingDay(''); }}
+                        style={{ padding:'4px 10px' }}
+                    >{(translations as any).add || 'Add'}</button>
+                    {selectedDays.length>0 && (
+                        <button type="button" onClick={() => setSelectedDays([])} style={{ padding:'4px 10px' }}>{(translations as any).clear || 'Clear'}</button>
+                    )}
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:8 }}>
+                    {selectedDays.map(d => (
+                        <span key={d} style={{ background:'#eee', padding:'3px 8px', borderRadius:14, fontSize:'0.7rem', display:'inline-flex', alignItems:'center', gap:6 }}>
+                            {new Date(d).toLocaleDateString(locale,{ day:'2-digit', month:'short' })}
+                            <button type="button" style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:'0.75rem' }} onClick={() => setSelectedDays(prev => prev.filter(x => x!==d))}>×</button>
+                        </span>
+                    ))}
+                </div>
+                {selectedDays.length===0 && <small style={{ fontSize:'0.65rem', color:'#666' }}>{(translations as any).addDaysHint || 'Pick dates using the field above'}</small>}
             </div>
-            <div className="date-entries">
-                {dateEntries.map((entry, index) => (
-                    <div key={index} className="date-entry">
-                        <div className="date-entry-header">
-                            <span>{entry.date.toLocaleDateString(locale, { 
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric'
-                            })}</span>
-                            <select
-                                value={entry.type}
-                                onChange={(e) => handleTypeChange(index, e.target.value)}
-                            >
-                                <option value="">{translations.selectType}</option>
-                                <option value="event">{translations.event}</option>
-                                <option value="assembly">{translations.assembly}</option>
-                                <option value="disassembly">{translations.disassembly}</option>
-                                <option value="others">{translations.others}</option>
-                            </select>
-                            {/* Status is always created as pre; controls removed for creation */}
-                            <div className="placeholder-display">
-                                {event}
-                            </div>
-                            <label className="notes-checkbox">
-                                <input
-                                    type="checkbox"
-                                    checked={entry.hasNotes}
-                                    onChange={() => handleNotesToggle(index)}
-                                />
-                                <span>{translations.notes}</span>
-                            </label>
-                        </div>
-                        {entry.hasNotes && (
-                            <textarea
-                                value={entry.notes}
-                                onChange={(e) => handleNotesChange(index, e.target.value)}
-                                className="notes-textarea"
-                                placeholder={translations.placeholder}
-                                rows={6}
-                            />
-                        )}
-                        <button
-                            type="button"
-                            className="remove-entry-button"
-                            onClick={() => handleRemoveEntry(index)}
-                        >
-                            Remove
-                        </button>
-                    </div>
-                ))}
+            <div className="form-group">
+                <label>{translations.selectType}:</label>
+                <select value={type} onChange={e => setType(e.target.value)}>
+                    <option value="event">{translations.event}</option>
+                    <option value="assembly">{translations.assembly}</option>
+                    <option value="disassembly">{translations.disassembly}</option>
+                    <option value="others">{translations.others}</option>
+                </select>
+            </div>
+            <div className="form-group">
+                <label>{translations.notes}:</label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5} />
             </div>
             <div className="form-buttons">
                 <button 

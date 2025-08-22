@@ -11,7 +11,7 @@ interface Reservation {
     responsablePerson: string;
     event: string;
     eventClassification: string;
-    date: Date;
+    dates: Date[]; // list of individual day start timestamps (00:00 UTC)
     type: string;
     notes?: string;
     reservationStatus?: 'pre' | 'confirmed' | 'flagged';
@@ -20,7 +20,7 @@ interface Reservation {
 // Shape returned by GET /reservations (server projection)
 export interface ReservationListItem {
     _id?: string;
-    date: string;
+    dates: string[]; // server always returns dates[]
     room: string;
     event: string;
     type: string;
@@ -95,6 +95,7 @@ export interface ReservationHistoryEvent {
     date: string;
     user?: string;
     action: string;
+    event?: string;
     fromStatus?: 'pre' | 'confirmed' | 'flagged';
     toStatus?: 'pre' | 'confirmed' | 'flagged';
     timestamp: string;
@@ -123,6 +124,7 @@ export interface ReservationDetail extends ReservationListItem {
     responsablePerson: string;
     eventClassification: string;
     notes?: string;
+    adminNotes?: string;
     reservationStatus?: 'pre' | 'confirmed' | 'flagged';
 }
 
@@ -135,3 +137,46 @@ export const fetchReservation = async (id: string): Promise<ReservationDetail> =
         throw e;
     }
 };
+
+export async function updateReservationNotes(id: string, payload: { notes?: string; adminNotes?: string }) {
+    await ensureCsrfToken();
+    const headers: any = {
+        'Content-Type': 'application/json',
+        ...(await csrfHeader())
+    };
+    const res = await fetch(`${API_URL}/reservations/${id}/notes`, {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed updating notes');
+    return res.json();
+}
+
+export async function deleteReservation(id: string) {
+    await ensureCsrfToken();
+    const headers: any = { ...(await csrfHeader()) };
+    const res = await fetch(`${API_URL}/reservations/${id}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include'
+    });
+    if (!res.ok) throw new Error('Failed deleting reservation');
+    return res.json();
+}
+
+export async function updateReservation(id: string, payload: Partial<{
+    room: string; date: string; endDate: string; dates: string[]; nif: string; producerName: string; email: string; contact: string; responsablePerson: string; event: string; eventClassification: string; type: string; notes: string;
+}>) {
+    await ensureCsrfToken();
+    const headers: any = { 'Content-Type':'application/json', ...(await csrfHeader()) };
+    const res = await fetch(`${API_URL}/reservations/${id}`, {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed updating reservation');
+    return res.json();
+}

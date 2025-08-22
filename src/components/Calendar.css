@@ -367,3 +367,48 @@ body {
     font-size: 18px;
     cursor: pointer;
 }
+
+/* Notes overlay */
+.notes-overlay-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.notes-overlay {
+    background: #fff;
+    width: min(680px, 100%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.35);
+    border: 1px solid #ccc;
+    overflow: hidden;
+}
+.notes-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid #eee;
+    background: #f7f7f7;
+}
+.notes-overlay-body {
+    padding: 14px;
+    overflow-y: auto;
+    flex: 1;
+}
+.badge-confirmed, .badge-pre {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #fff;
+    letter-spacing: 0.5px;
+}
+.badge-confirmed { background:#2d6; }
+.badge-pre { background:#888; }

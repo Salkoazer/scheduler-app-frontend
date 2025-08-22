@@ -59,5 +59,27 @@
     "statusUpdateFailed": "Falha ao atualizar estado",
     "statusConflict": "Já existe outra reserva confirmada/assinalada para este dia e sala",
     "remove": "Remover",
-    "fetchReservationsError": "Falha ao obter reservas"
+    "fetchReservationsError": "Falha ao obter reservas",
+    "adminNotes": "Notas de Admin",
+    "save": "Guardar",
+    "saving": "A guardar...",
+    "notesUpdated": "Notas atualizadas",
+    "notesUpdateFailed": "Falha ao atualizar notas",
+    "editNotes": "Editar Notas",
+    "closeNotesEditor": "Fechar Notas",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "saved": "Guardado",
+    "saveFailed": "Falha ao guardar",
+    "nothingToSave": "Nada para guardar",
+    "discreteDays": "Selecionar dias",
+    "clear": "Limpar",
+    "addDaysHint": "Escolha datas (use o campo acima para adicionar mais)",
+    "daysSelected": "dias selecionados",
+    "removeDay": "Remover dia"
+    ,"removeThisDay":"Remover este dia"
+    ,"removeAllDays":"Remover todos os dias"
+    ,"dayRemoved":"Dia removido"
+    ,"dayRemoveFailed":"Falha ao remover dia"
+    ,"confirmDeletePreAll":"Remover TODOS os dias desta pré-reserva?"
 }
