@@ -25,7 +25,16 @@ interface CalendarProps {
 }
 
 const Calendar: React.FC<CalendarProps> = ({ locale }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const [currentDate, setCurrentDate] = useState(() => {
+        try {
+            const stored = sessionStorage.getItem('calendarCurrentMonth');
+            if (stored) {
+                const d = new Date(stored);
+                if (!isNaN(d.getTime())) return d;
+            }
+        } catch {}
+        return new Date();
+    });
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
     const [reservations, setReservations] = useState<ReservationListItem[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -61,6 +70,15 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
         };
 
         loadReservations();
+    }, [currentDate]);
+
+    // Persist current month selection across navigation within the session
+    useEffect(() => {
+        try {
+            // Store first day of month to avoid DST edge issues
+            const monthAnchor = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+            sessionStorage.setItem('calendarCurrentMonth', monthAnchor);
+        } catch {}
     }, [currentDate]);
 
     // Helper to refresh reservations for the current month
