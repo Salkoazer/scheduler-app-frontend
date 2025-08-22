@@ -349,122 +349,21 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                             <button onClick={closePopup}>{translations.close}</button>
                         </div>
                         <hr />
-                        {historyOpen && (
-                            <div className="history-panel" style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 16 }}>
-                                {historyLoading && <div>Loading history...</div>}
-                                {historyError && <div className="error-message">{historyError}</div>}
-                                {!historyLoading && !historyError && historyEvents && historyEvents.length === 0 && (
-                                    <div>No history for this day</div>
-                                )}
-                                {!historyLoading && !historyError && historyEvents && historyEvents.length > 0 && (
-                                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr>
-                                                <th style={{ textAlign: 'left' }}>Time</th>
-                                                <th style={{ textAlign: 'left' }}>User</th>
-                                                <th style={{ textAlign: 'left' }}>Action</th>
-                                                <th style={{ textAlign: 'left' }}>From</th>
-                                                <th style={{ textAlign: 'left' }}>To</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {historyEvents.map((ev, idx) => (
-                                                <tr key={idx}>
-                                                    <td>{new Date(ev.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
-                                                    <td>{ev.user || ''}</td>
-                                                    <td>{ev.action}</td>
-                                                    <td>{ev.fromStatus || ''}</td>
-                                                    <td>{ev.toStatus || ''}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-                        )}
-                        {historyOpen && <hr />}
-                        <section>
-                            <h3>{translations.activeReservations}</h3>
-                            {selectedReservations.filter(res => res.status === 'active').length > 0 ? (
-                                selectedReservations.filter(res => res.status === 'active').map(res => (
+                        {(() => {
+                            const reservationLabel = locale === 'pt' ? 'Reserva' : 'Reservation';
+                            const preLabel = locale === 'pt' ? 'Pré-reservas' : 'Pre-Reservations';
+                            const reservationEntry = selectedReservations.find(r => r.reservationStatus && r.reservationStatus !== 'pre');
+                            const preEntries = selectedReservations.filter(r => !r.reservationStatus || r.reservationStatus === 'pre');
+                            const renderReservationCard = (res: ReservationListItem) => {
+                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
+                                return (
                                     <div className="reservation" key={res._id}>
                                         <p>{res.event}</p>
                                         {res.author ? <p>{res.author}</p> : null}
                                         <div>
                                             <label style={{ marginRight: '6px' }}>Status:</label>
-                                            {(() => {
-                                                const anyConfirmedOther = selectedReservations.some(r => r._id !== res._id && r.reservationStatus && ['confirmed','flagged'].includes(r.reservationStatus));
-                                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
-                                                return (
-                                                    <select
-                                                        value={baseValue}
-                                                        disabled={baseValue === 'pre' && anyConfirmedOther}
-                                                onChange={async (e) => {
-                                                    if (!res._id) return;
-                                                    const base = e.target.value as 'pre' | 'confirmed';
-                                                    const next = base === 'pre' ? 'pre' : (res.reservationStatus === 'flagged' ? 'flagged' : 'confirmed');
-                                                        try {
-                                                            await updateReservationStatus(res._id, next);
-                                                            await refreshMonthReservations();
-                                                            setToast({ message: 'Status updated', type: 'success' });
-                                                        } catch (err: any) {
-                                                            if (err?.response?.status === 409) {
-                                                                setToast({ message: 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
-                                                            } else {
-                                                                setToast({ message: 'Failed to update status', type: 'error' });
-                                                            }
-                                                        }
-                                                }}
-                                                    >
-                                                        <option value="pre">Pre-reservation</option>
-                                                        <option value="confirmed" disabled={anyConfirmedOther && baseValue==='pre'}>Reservation</option>
-                                                    </select>
-                                                );
-                                            })()}
-                                            {res.reservationStatus && res.reservationStatus !== 'pre' && (
-                                                <label style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={res.reservationStatus === 'flagged'}
-                                                        onChange={async (e) => {
-                                                            if (!res._id) return;
-                                                            const next = e.target.checked ? 'flagged' as const : 'confirmed' as const;
-                                                            try {
-                                                                await updateReservationStatus(res._id, next);
-                                                                await refreshMonthReservations();
-                                                                setToast({ message: 'Status updated', type: 'success' });
-                                                            } catch {
-                                                                setToast({ message: 'Failed to update status', type: 'error' });
-                                                            }
-                                                        }}
-                                                    />
-                                                    <span>Flagged (paid)</span>
-                                                </label>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <p>No active reservations</p>
-                            )}
-                        </section>
-                        <hr />
-                        <section>
-                            <h3>{translations.inactiveReservations}</h3>
-                            {selectedReservations.filter(res => res.status !== 'active').length > 0 ? (
-                                selectedReservations.filter(res => res.status !== 'active').map(res => (
-                                    <div className="reservation" key={res._id}>
-                                        <p>{res.event}</p>
-                                        {res.author ? <p>{res.author}</p> : null}
-                                        <div>
-                                            <label style={{ marginRight: '6px' }}>Status:</label>
-                                            {(() => {
-                                                const anyConfirmedOther = selectedReservations.some(r => r._id !== res._id && r.reservationStatus && ['confirmed','flagged'].includes(r.reservationStatus));
-                                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
-                                                return (
-                                                    <select
-                                                        value={baseValue}
-                                                        disabled={baseValue === 'pre' && anyConfirmedOther}
+                                            <select
+                                                value={baseValue}
                                                 onChange={async (e) => {
                                                     if (!res._id) return;
                                                     const base = e.target.value as 'pre' | 'confirmed';
@@ -481,12 +380,10 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                                         }
                                                     }
                                                 }}
-                                                    >
-                                                        <option value="pre">Pre-reservation</option>
-                                                        <option value="confirmed" disabled={anyConfirmedOther && baseValue==='pre'}>Reservation</option>
-                                                    </select>
-                                                );
-                                            })()}
+                                            >
+                                                <option value="pre">Pre-reservation</option>
+                                                <option value="confirmed">Reservation</option>
+                                            </select>
                                             {res.reservationStatus && res.reservationStatus !== 'pre' && (
                                                 <label style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                                     <input
@@ -509,11 +406,93 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                             )}
                                         </div>
                                     </div>
-                                ))
-                            ) : (
-                                <p>No inactive reservations</p>
-                            )}
-                        </section>
+                                );
+                            };
+                const renderPreCard = (res: ReservationListItem, anyConfirmed: boolean) => {
+                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
+                                return (
+                    <div className="reservation pre-reservation" key={res._id} style={{ borderBottom: '1px solid #ddd', paddingBottom: 8, marginBottom: 8 }}>
+                                        <p>{res.event}</p>
+                                        {res.author ? <p>{res.author}</p> : null}
+                                        <div>
+                                            <label style={{ marginRight: '6px' }}>Status:</label>
+                                            <select
+                                                value={baseValue}
+                                                disabled={baseValue === 'pre' && anyConfirmed}
+                                                onChange={async (e) => {
+                                                    if (!res._id) return;
+                                                    const base = e.target.value as 'pre' | 'confirmed';
+                                                    const next = base === 'pre' ? 'pre' : 'confirmed';
+                                                    try {
+                                                        await updateReservationStatus(res._id, next);
+                                                        await refreshMonthReservations();
+                                                        setToast({ message: 'Status updated', type: 'success' });
+                                                    } catch (err: any) {
+                                                        if (err?.response?.status === 409) {
+                                                            setToast({ message: 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
+                                                        } else {
+                                                            setToast({ message: 'Failed to update status', type: 'error' });
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                                <option value="pre">Pre-reservation</option>
+                                                <option value="confirmed" disabled={anyConfirmed}>Reservation</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                );
+                            };
+                            return (
+                                <>
+                                    <section>
+                                        <h3>{reservationLabel}</h3>
+                                        {reservationEntry ? renderReservationCard(reservationEntry) : <p>{locale === 'pt' ? 'Nenhuma reserva' : 'No reservation'}</p>}
+                                    </section>
+                                    <hr />
+                                    <section>
+                                        <h3>{preLabel}</h3>
+                                        {preEntries.length > 0 ? preEntries.map(r => renderPreCard(r, !!reservationEntry)) : <p>{locale === 'pt' ? 'Sem pré-reservas' : 'No pre-reservations'}</p>}
+                                    </section>
+                                </>
+                            );
+                        })()}
+                        {historyOpen && (
+                            <>
+                                <hr />
+                                <div className="history-panel" style={{ maxHeight: 180, overflowY: 'auto', marginTop: 16 }}>
+                                    {historyLoading && <div>Loading history...</div>}
+                                    {historyError && <div className="error-message">{historyError}</div>}
+                                    {!historyLoading && !historyError && historyEvents && historyEvents.length === 0 && (
+                                        <div>No history for this day</div>
+                                    )}
+                                    {!historyLoading && !historyError && historyEvents && historyEvents.length > 0 && (
+                                        <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ textAlign: 'left' }}>Time</th>
+                                                    <th style={{ textAlign: 'left' }}>User</th>
+                                                    <th style={{ textAlign: 'left' }}>Action</th>
+                                                    <th style={{ textAlign: 'left' }}>From</th>
+                                                    <th style={{ textAlign: 'left' }}>To</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {historyEvents.map((ev, idx) => (
+                                                    <tr key={idx} style={ idx < historyEvents.length - 1 ? { borderBottom: '1px solid #eee' } : undefined }>
+                                                        <td>{new Date(ev.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                                                        <td>{ev.user || ''}</td>
+                                                        <td>{ev.action}</td>
+                                                        <td>{ev.fromStatus || ''}</td>
+                                                        <td>{ev.toStatus || ''}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
