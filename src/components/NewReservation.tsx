@@ -65,7 +65,6 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const [pendingDay, setPendingDay] = useState<string>('');
     
     const [nif, setNif] = useState('');
-    const [isValidNif, setIsValidNif] = useState<boolean | null>(null);
     const [producerName, setProducerName] = useState('');
     const [email, setEmail] = useState('');
     const [contact, setContact] = useState('');
@@ -78,29 +77,14 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
 
     const translations = locale === 'en' ? enTranslations : ptTranslations;
 
-    const validateNif = (value: string) => {
-        if (value.length === 9 && !isNaN(Number(value))) {
-            setIsValidNif(true);
-            return true;
-        } else if (value.length === 0) {
-            setIsValidNif(null);
-            return null;
-        } else {
-            setIsValidNif(false);
-            return false;
-        }
-    };
-
     const handleNifChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newValue = e.target.value;
-        setNif(newValue);
-        validateNif(newValue);
+        setNif(e.target.value);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (selectedDays.length === 0) { alert(translations.reservationError); return; }
-        const baseValidation = reservationBaseSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification });
+    if (selectedDays.length === 0) { alert(translations.reservationError); return; }
+    const baseValidation = reservationBaseSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification });
         if (!baseValidation.success) { alert(baseValidation.error.errors[0]?.message || translations.reservationError); return; }
         // Validate first day payload representative
         const firstDate = new Date(selectedDays[0] + 'T00:00:00.000Z');
@@ -150,42 +134,11 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     // Effect not needed for per-entry sync; single event field used for whole reservation
 
     const isFormValid = (): boolean => {
-        // Check if all required fields are filled
-    const requiredFields = { nif, producerName, email, contact, responsablePerson, event, eventClassification, type };
-
-        // Log each field's value for debugging
-        console.log('Form validation:', requiredFields);
-
-        // Check if any field is empty or only whitespace
-        const areMainFieldsFilled = Object.values(requiredFields)
-            .every(field => field && field.toString().trim() !== '');
-        
-        const isNifValid = isValidNif === true;
-        
-    const hasValidDateEntries = selectedDays.length > 0;
-
-        // Log validation results
-        console.log('Fields filled:', areMainFieldsFilled);
-        console.log('NIF valid:', isNifValid);
-    console.log('Date entries valid:', hasValidDateEntries);
-
-        const zodBaseOk = reservationBaseSchema.safeParse({
-            room,
-            nif,
-            producerName,
-            email,
-            contact,
-            responsablePerson,
-            event,
-            eventClassification
-        }).success;
-
-    const zodEntriesOk = selectedDays.length > 0 && reservationPayloadSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification, date: new Date(selectedDays[0] + 'T00:00:00.000Z'), type: type as any, notes }).success;
-
-        const isValid = areMainFieldsFilled && isNifValid && hasValidDateEntries && zodBaseOk && zodEntriesOk;
-        console.log('Form is valid:', isValid);
-
-        return isValid;
+        if (!event.trim()) return false;
+        if (selectedDays.length === 0) return false;
+        const zodBaseOk = reservationBaseSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification }).success;
+        const zodEntriesOk = reservationPayloadSchema.safeParse({ room, nif, producerName, email, contact, responsablePerson, event, eventClassification, date: new Date(selectedDays[0] + 'T00:00:00.000Z'), type, notes }).success;
+        return zodBaseOk && zodEntriesOk;
     };
 
     return (
@@ -199,10 +152,8 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 <label>{translations.nif}:</label>
                 <input 
                     type="text"
-                    maxLength={9}
                     value={nif}
                     onChange={handleNifChange}
-                    className={isValidNif === true ? 'valid' : isValidNif === false ? 'invalid' : ''}
                 />
             </div>
             <div className="form-group">

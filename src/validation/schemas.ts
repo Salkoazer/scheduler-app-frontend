@@ -13,26 +13,21 @@ export const dateEntrySchema = z.object({
   notes: z.string().optional(),
 });
 
-const nifRegex = /^[0-9]{9}$/;
-
+// Relaxed validation: only event is mandatory; other fields optional with no specific formatting
 export const reservationBaseSchema = z.object({
   room: z.string().min(1, 'Room is required'),
-  nif: z
-    .string()
-    .regex(nifRegex, 'NIF must be 9 digits'),
-  producerName: z.string().min(1, 'Producer name is required'),
-  email: z.string().email('Invalid email'),
-  contact: z.string().min(1, 'Contact is required'),
-  responsablePerson: z.string().min(1, 'Responsible person is required'),
+  nif: z.string().optional(),
+  producerName: z.string().optional(),
+  email: z.string().optional(),
+  contact: z.string().optional(),
+  responsablePerson: z.string().optional(),
   event: z.string().min(1, 'Event is required'),
-  eventClassification: z.string().min(1, 'Classification is required'),
+  eventClassification: z.string().optional(),
 });
 
 export const reservationPayloadSchema = reservationBaseSchema.extend({
   date: z.date({ required_error: 'Date is required' }),
-  type: z.enum(['event', 'assembly', 'disassembly', 'others'], {
-    required_error: 'Type is required',
-  }),
+  type: z.string().optional(),
   notes: z.string().optional(),
 });
 
