@@ -128,7 +128,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
         const monthName = new Date(2000, month, 1).toLocaleString(locale, { month: 'long' });
         const fileName = `reservations_${monthName}_${year}.xls`;
         XLSX.writeFile(wb, fileName, { bookType: 'xls' });
-        setToast({ message: 'Exported month to XLS', type: 'success' });
+    setToast({ message: (translations as any).exportMonthSuccess || 'Exported month to XLS', type: 'success' });
     };
 
     const handleMonthChange = (m: number) => {
@@ -362,14 +362,14 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                 }}
                                 style={{ marginLeft: 8 }}
                             >
-                                {historyOpen ? 'Hide History' : 'History'}
+                                {historyOpen ? (translations as any).hideHistory || 'Hide History' : (translations as any).history || 'History'}
                             </button>
                             <button onClick={closePopup}>{translations.close}</button>
                         </div>
                         <hr />
                         {(() => {
-                            const reservationLabel = locale === 'pt' ? 'Reserva' : 'Reservation';
-                            const preLabel = locale === 'pt' ? 'Pré-reservas' : 'Pre-Reservations';
+                            const reservationLabel = (translations as any).reservationSingular || 'Reservation';
+                            const preLabel = (translations as any).preReservations || 'Pre-Reservations';
                             const reservationEntry = selectedReservations.find(r => r.reservationStatus && r.reservationStatus !== 'pre');
                             const preEntries = selectedReservations.filter(r => !r.reservationStatus || r.reservationStatus === 'pre');
                             const renderReservationCard = (res: ReservationListItem) => {
@@ -378,8 +378,9 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                     <div className="reservation" key={res._id}>
                                         <p>{res.event}</p>
                                         {res.author ? <p>{res.author}</p> : null}
+                                        <button style={{ marginBottom: 8 }} onClick={() => navigate(`/reservation/${res._id}`)}>{(translations as any).view || 'View'}</button>
                                         <div>
-                                            <label style={{ marginRight: '6px' }}>Status:</label>
+                                            <label style={{ marginRight: '6px' }}>{(translations as any).status || 'Status'}:</label>
                                             <select
                                                 value={baseValue}
                                                 onChange={async (e) => {
@@ -389,12 +390,12 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                                     try {
                                                         await updateReservationStatus(res._id, next);
                                                         await refreshMonthReservations();
-                                                        setToast({ message: 'Status updated', type: 'success' });
+                                                        setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
                                                     } catch (err: any) {
                                                         if (err?.response?.status === 409) {
-                                                            setToast({ message: 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
+                                                            setToast({ message: (translations as any).statusConflict || 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
                                                         } else {
-                                                            setToast({ message: 'Failed to update status', type: 'error' });
+                                                            setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
                                                         }
                                                     }
                                                 }}
@@ -413,13 +414,13 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                                             try {
                                                                 await updateReservationStatus(res._id, next);
                                                                 await refreshMonthReservations();
-                                                                setToast({ message: 'Status updated', type: 'success' });
+                                                                setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
                                                             } catch {
-                                                                setToast({ message: 'Failed to update status', type: 'error' });
+                                                                setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
                                                             }
                                                         }}
                                                     />
-                                                    <span>Flagged (paid)</span>
+                                                    <span>{(translations as any).flaggedPaid || 'Flagged (paid)'}</span>
                                                 </label>
                                             )}
                                         </div>
@@ -432,8 +433,9 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                     <div className="reservation pre-reservation" key={res._id} style={{ borderBottom: '1px solid #ddd', paddingBottom: 8, marginBottom: 8 }}>
                                         <p>{res.event}</p>
                                         {res.author ? <p>{res.author}</p> : null}
+                                        <button style={{ marginBottom: 8 }} onClick={() => navigate(`/reservation/${res._id}`)}>{(translations as any).view || 'View'}</button>
                                         <div>
-                                            <label style={{ marginRight: '6px' }}>Status:</label>
+                                            <label style={{ marginRight: '6px' }}>{(translations as any).status || 'Status'}:</label>
                                             <select
                                                 value={baseValue}
                                                 disabled={baseValue === 'pre' && anyConfirmed}
@@ -444,12 +446,12 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                                     try {
                                                         await updateReservationStatus(res._id, next);
                                                         await refreshMonthReservations();
-                                                        setToast({ message: 'Status updated', type: 'success' });
+                                                        setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
                                                     } catch (err: any) {
                                                         if (err?.response?.status === 409) {
-                                                            setToast({ message: 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
+                                                            setToast({ message: (translations as any).statusConflict || 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
                                                         } else {
-                                                            setToast({ message: 'Failed to update status', type: 'error' });
+                                                            setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
                                                         }
                                                     }
                                                 }}
@@ -465,12 +467,12 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                 <>
                                     <section>
                                         <h3>{reservationLabel}</h3>
-                                        {reservationEntry ? renderReservationCard(reservationEntry) : <p>{locale === 'pt' ? 'Nenhuma reserva' : 'No reservation'}</p>}
+                                        {reservationEntry ? renderReservationCard(reservationEntry) : <p>{(translations as any).noReservation || (locale === 'pt' ? 'Nenhuma reserva' : 'No reservation')}</p>}
                                     </section>
                                     <hr />
                                     <section>
                                         <h3>{preLabel}</h3>
-                                        {preEntries.length > 0 ? preEntries.map(r => renderPreCard(r, !!reservationEntry)) : <p>{locale === 'pt' ? 'Sem pré-reservas' : 'No pre-reservations'}</p>}
+                                        {preEntries.length > 0 ? preEntries.map(r => renderPreCard(r, !!reservationEntry)) : <p>{(translations as any).noPreReservations || (locale === 'pt' ? 'Sem pré-reservas' : 'No pre-reservations')}</p>}
                                     </section>
                                 </>
                             );
@@ -479,20 +481,20 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                             <>
                                 <hr />
                                 <div className="history-panel" style={{ maxHeight: 180, overflowY: 'auto', marginTop: 16 }}>
-                                    {historyLoading && <div>Loading history...</div>}
+                                    {historyLoading && <div>{(translations as any).loadingHistory || 'Loading history...'}</div>}
                                     {historyError && <div className="error-message">{historyError}</div>}
                                     {!historyLoading && !historyError && historyEvents && historyEvents.length === 0 && (
-                                        <div>No history for this day</div>
+                                        <div>{(translations as any).noHistoryDay || 'No history for this day'}</div>
                                     )}
                                     {!historyLoading && !historyError && historyEvents && historyEvents.length > 0 && (
                                         <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
                                             <thead>
                                                 <tr>
-                                                    <th style={{ textAlign: 'left' }}>Time</th>
-                                                    <th style={{ textAlign: 'left' }}>User</th>
-                                                    <th style={{ textAlign: 'left' }}>Action</th>
-                                                    <th style={{ textAlign: 'left' }}>From</th>
-                                                    <th style={{ textAlign: 'left' }}>To</th>
+                                                    <th style={{ textAlign: 'left' }}>{(translations as any).time || 'Time'}</th>
+                                                    <th style={{ textAlign: 'left' }}>{(translations as any).user || 'User'}</th>
+                                                    <th style={{ textAlign: 'left' }}>{(translations as any).action || 'Action'}</th>
+                                                    <th style={{ textAlign: 'left' }}>{(translations as any).from || 'From'}</th>
+                                                    <th style={{ textAlign: 'left' }}>{(translations as any).to || 'To'}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
