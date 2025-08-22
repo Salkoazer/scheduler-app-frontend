@@ -25,6 +25,8 @@ const App: React.FC = () => {
     const [editUser, setEditUser] = useState<{ original: string; username: string; password: string; role: 'admin' | 'staff' } | null>(null);
     const [appToast, setAppToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [lastActivity, setLastActivity] = useState(Date.now());
+    const [dayClearNotifs, setDayClearNotifs] = useState<{ id: string; room: string; dateISO: string; dayKey: string; message: string; createdAt: number }[]>([]);
+    const [openDayRequest, setOpenDayRequest] = useState<{ room: string; dateISO: string; nonce: number } | null>(null);
 
     const handleLogin = (username: string, roleIn: 'admin' | 'staff') => {
         setIsAuthenticated(true);
@@ -103,7 +105,25 @@ const App: React.FC = () => {
                 </div>
                 {isAuthenticated && (
                     <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{username}</span>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                            {username}
+                            {dayClearNotifs.length > 0 && (
+                                <button
+                                    aria-label={`You have ${dayClearNotifs.length} day clear notification(s)`}
+                                    style={{ background:'transparent', border:'none', cursor:'pointer', position:'relative', fontSize:'1rem' }}
+                                    onClick={() => {
+                                        // For now open the most recent notification
+                                        const latest = dayClearNotifs[dayClearNotifs.length - 1];
+                                        setOpenDayRequest({ room: latest.room, dateISO: latest.dateISO, nonce: Date.now() });
+                                        // Remove it from list (could later show a dropdown)
+                                        setDayClearNotifs(ns => ns.filter(n => n.id !== latest.id));
+                                    }}
+                                    title={dayClearNotifs[dayClearNotifs.length - 1]?.message}
+                                >
+                                    🔔<span style={{ position:'absolute', top:-4, right:-4, background:'#d32f2f', color:'#fff', borderRadius:'50%', padding:'0 5px', fontSize:'0.55rem' }}>{dayClearNotifs.length}</span>
+                                </button>
+                            )}
+                        </span>
                         {role === 'admin' && (
                             <button onClick={async () => { 
                                 setShowAccountMgmt(true); 
@@ -226,7 +246,14 @@ const App: React.FC = () => {
                     path="/calendar" 
                     element={
                         isAuthenticated ? 
-                        <Calendar locale={locale} username={username} role={role} /> : 
+                        <Calendar
+                            locale={locale}
+                            username={username}
+                            role={role}
+                            onDayClear={(n) => setDayClearNotifs(prev => [...prev, ...n])}
+                            openDayRequest={openDayRequest}
+                            onConsumeOpenDayRequest={() => setOpenDayRequest(null)}
+                        /> : 
                         <Navigate to="/" replace />
                     } 
                 />

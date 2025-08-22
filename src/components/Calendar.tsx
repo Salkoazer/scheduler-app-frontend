@@ -22,13 +22,25 @@ interface Translations {
     // add other translation keys here
 }
 
+interface DayClearNotification {
+    id: string;
+    room: string;
+    dateISO: string; // midnight ISO of the day
+    dayKey: string; // YYYY-MM-DD
+    message: string;
+    createdAt: number;
+}
+
 interface CalendarProps {
     locale: 'en' | 'pt';
     username?: string | null;
     role?: 'admin' | 'staff' | null;
+    onDayClear?(notifs: DayClearNotification[]): void; // emit newly detected notifications
+    openDayRequest?: { room: string; dateISO: string; nonce: number } | null;
+    onConsumeOpenDayRequest?: () => void;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
+const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear, openDayRequest, onConsumeOpenDayRequest }) => {
     const [currentDate, setCurrentDate] = useState(() => {
         try {
             const stored = sessionStorage.getItem('calendarCurrentMonth');
@@ -56,6 +68,10 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
     const [notesState, setNotesState] = useState<Record<string, { open: boolean; draft: string; baseline: string; saving: boolean }>>({});
     const [deleteChoiceFor, setDeleteChoiceFor] = useState<string | null>(null); // reservation id awaiting delete scope choice
     const navigate = useNavigate();
+    // Track previously occupied (confirmed/flagged) day+room combinations to detect clearing events
+    const prevOccupiedRef = React.useRef<Set<string>>(new Set());
+    const notifiedDaysRef = React.useRef<Set<string>>(new Set()); // room|dayKey already notified
+    const pendingOpenRef = React.useRef<{ room: string; day: number; year: number; month: number } | null>(null);
 
     // Notes editor helpers
     const toggleNotes = (res: ReservationListItem) => {
@@ -115,6 +131,18 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
                     console.log('[Calendar] Fetched reservations', fetchedReservations.map(r => ({ id: r._id, dates: (r as any).dates, room: r.room, status: r.reservationStatus })));
                 }
                 setReservations(fetchedReservations);
+                // After setting reservations, detect day-clear events
+                detectDayClearEvents(fetchedReservations);
+                // If there is a pending open day request and month matches, open it
+                if (pendingOpenRef.current) {
+                    const { year, month, day, room } = pendingOpenRef.current;
+                    if (year === currentDate.getFullYear() && month === currentDate.getMonth()) {
+                        if (selectedRoom !== room) setSelectedRoom(room);
+                        handleDayClick(day);
+                        pendingOpenRef.current = null;
+                        onConsumeOpenDayRequest && onConsumeOpenDayRequest();
+                    }
+                }
             } catch (error) {
                 console.error('Error fetching reservations:', error);
                 setError('Failed to fetch reservations');
@@ -182,6 +210,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
                 console.log('[Calendar] Refreshed reservations', fetchedReservations.map(r => ({ id: r._id, dates: (r as any).dates, room: r.room, status: r.reservationStatus })));
             }
             setReservations(fetchedReservations);
+            detectDayClearEvents(fetchedReservations);
             if (selectedDay !== null) {
                 const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
                 const dayReservations = fetchedReservations.filter(res => {
@@ -193,6 +222,44 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
             }
         } catch (e) {
             console.error('Error refreshing reservations:', e);
+        }
+    };
+
+    // Detect transitions where a previously occupied (confirmed/flagged) day becomes clear and user has a pre-reservation there
+    const detectDayClearEvents = (fetched: ReservationListItem[]) => {
+        if (!username) return;
+        const currentOccupied = new Set<string>(); // room|dayKey
+        const userPreByDay = new Map<string, { room: string; dateISO: string }>(); // dayKey|room -> meta
+        fetched.forEach(r => {
+            const datesArr: string[] = Array.isArray((r as any).dates) ? (r as any).dates : [];
+            datesArr.forEach(d => {
+                const dayKey = d.slice(0,10);
+                const key = `${r.room}|${dayKey}`;
+                if (r.reservationStatus && r.reservationStatus !== 'pre') {
+                    currentOccupied.add(key);
+                } else if ((!r.reservationStatus || r.reservationStatus === 'pre') && r.author && r.author.toLowerCase() === username.toLowerCase()) {
+                    // user pre-reservation candidate
+                    if (!userPreByDay.has(key)) {
+                        userPreByDay.set(key, { room: r.room, dateISO: dayKey + 'T00:00:00.000Z' });
+                    }
+                }
+            });
+        });
+        const prev = prevOccupiedRef.current;
+        const newlyClear: DayClearNotification[] = [];
+        userPreByDay.forEach((meta, key) => {
+            // If previously occupied and now not occupied -> day clear event
+            if (prev.has(key) && !currentOccupied.has(key) && !notifiedDaysRef.current.has(key)) {
+                const [room, dayKey] = key.split('|');
+                const dt = new Date(meta.dateISO);
+                const msg = `Day ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()} is now clear of reservations, click to see`;
+                newlyClear.push({ id: key + '|' + Date.now(), room, dateISO: meta.dateISO, dayKey, message: msg, createdAt: Date.now() });
+                notifiedDaysRef.current.add(key);
+            }
+        });
+        prevOccupiedRef.current = currentOccupied; // replace reference
+        if (newlyClear.length && onDayClear) {
+            onDayClear(newlyClear);
         }
     };
 
@@ -372,6 +439,27 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
             }
         });
     };
+
+    // Respond to external open day request (from notification click)
+    useEffect(() => {
+        if (!openDayRequest) return;
+        const dt = new Date(openDayRequest.dateISO);
+        if (isNaN(dt.getTime())) return;
+        const year = dt.getFullYear();
+        const month = dt.getMonth();
+        const day = dt.getDate();
+        // If different month, set pending and move month; will open after reservations load
+        pendingOpenRef.current = { room: openDayRequest.room, day, year, month };
+        if (selectedRoom !== openDayRequest.room) setSelectedRoom(openDayRequest.room);
+        if (currentDate.getFullYear() !== year || currentDate.getMonth() !== month) {
+            setCurrentDate(new Date(year, month, 1));
+        } else {
+            handleDayClick(day);
+            onConsumeOpenDayRequest && onConsumeOpenDayRequest();
+            pendingOpenRef.current = null;
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openDayRequest]);
 
     if (loading) {
         return <div>Loading...</div>;
