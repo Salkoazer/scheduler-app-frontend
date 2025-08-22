@@ -4,7 +4,7 @@ import './NewReservation.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
 import { enUS, pt, Locale } from 'date-fns/locale';
-import { createReservation } from '../services/reservations';
+import { createReservation, clearReservationCache } from '../services/reservations';
 import { reservationBaseSchema, reservationPayloadSchema } from '../validation/schemas';
 
 interface NewReservationProps {
@@ -123,7 +123,14 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
                 notes
             } as any;
             const success = await createReservation(reservationData);
-            if (success) { alert(translations.reservationSuccess); navigate('/calendar'); } else { alert(translations.reservationError); }
+            if (success) {
+                // Ensure calendar refetch isn't served stale cached month snapshot
+                clearReservationCache();
+                alert(translations.reservationSuccess);
+                navigate('/calendar');
+            } else {
+                alert(translations.reservationError);
+            }
         } catch (error) {
             console.error('Failed to submit reservation:', error);
             alert(translations.reservationError);
