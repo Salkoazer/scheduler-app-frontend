@@ -38,9 +38,10 @@ interface CalendarProps {
     onDayClear?(notifs: DayClearNotification[]): void; // emit newly detected notifications
     openDayRequest?: { room: string; dateISO: string; nonce: number } | null;
     onConsumeOpenDayRequest?: () => void;
+    seenDayClearKeys?: string[]; // room|dayKey already seen (persisted) to suppress
 }
 
-const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear, openDayRequest, onConsumeOpenDayRequest }) => {
+const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear, openDayRequest, onConsumeOpenDayRequest, seenDayClearKeys }) => {
     const [currentDate, setCurrentDate] = useState(() => {
         try {
             const stored = sessionStorage.getItem('calendarCurrentMonth');
@@ -76,6 +77,11 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     const prevOccupiedAuthorsRef = React.useRef<Map<string, Set<string>>>(new Map());
     const notifiedDaysRef = React.useRef<Set<string>>(new Set()); // room|dayKey already notified
     const pendingOpenRef = React.useRef<{ room: string; day: number; year: number; month: number } | null>(null);
+    // Seed internal notifiedDaysRef with already seen keys (one-time / whenever prop changes)
+    useEffect(() => {
+        if (!seenDayClearKeys || !seenDayClearKeys.length) return;
+        seenDayClearKeys.forEach(k => notifiedDaysRef.current.add(k));
+    }, [seenDayClearKeys]);
 
     // Notes editor helpers
     const toggleNotes = (res: ReservationListItem) => {
@@ -337,6 +343,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
         if (!username) return;
         let stopped = false;
         let to: any;
+    const INITIAL_DELAY_MS = 5000; // delay first wide sweep 5s to avoid login burst
         const sweep = async () => {
             if (stopped) return;
             const baseYear = currentDate.getFullYear();
@@ -356,7 +363,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                 to = setTimeout(sweep, jitter);
             }
         };
-        sweep();
+    to = setTimeout(sweep, INITIAL_DELAY_MS);
         return () => { stopped = true; if (to) clearTimeout(to); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [username]);
@@ -368,6 +375,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
         let cancelled = false;
         let timer: any;
         const HORIZON_YEARS = 5;
+    const INITIAL_DELAY_MS = 15000; // delay horizon sweep 15s to avoid stacking with initial + wide sweep
         const runHorizonSweep = async () => {
             if (cancelled) return;
             try {
@@ -404,7 +412,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                 }
             }
         };
-        runHorizonSweep();
+    timer = setTimeout(runHorizonSweep, INITIAL_DELAY_MS);
         return () => { cancelled = true; if (timer) clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [username]);
