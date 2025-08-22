@@ -48,7 +48,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, locale }) => {
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        required
+                            required
+                            autoComplete="username"
                     />
                 </div>
                 <div className="form-group">
@@ -57,7 +58,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, locale }) => {
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        required
+                            required
+                            autoComplete="current-password"
                     />
                 </div>
                 {error && <p style={{ color: 'red' }}>{error}</p>}
