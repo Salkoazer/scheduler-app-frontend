@@ -64,6 +64,8 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     const [historyEvents, setHistoryEvents] = useState<ReservationHistoryEvent[] | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
+    // Count of user pre-reservations that are currently blocked by a confirmed/flagged reservation (same room+day)
+    const [blockedPreCount, setBlockedPreCount] = useState(0);
     // Per-reservation notes state
     const [notesState, setNotesState] = useState<Record<string, { open: boolean; draft: string; baseline: string; saving: boolean }>>({});
     const [deleteChoiceFor, setDeleteChoiceFor] = useState<string | null>(null); // reservation id awaiting delete scope choice
@@ -226,6 +228,56 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
             console.error('Error refreshing reservations:', e);
         }
     };
+
+    // Derive how many of the current user's pre-reservations are blocked by an occupied (confirmed/flagged) reservation.
+    useEffect(() => {
+        if (!username) { setBlockedPreCount(0); return; }
+        const userLc = username.toLowerCase();
+        const userPre = new Set<string>(); // room|dayKey where user has pre
+        const occupied = new Set<string>(); // room|dayKey occupied by confirmed/flagged
+        reservations.forEach(r => {
+            const datesArr: string[] = Array.isArray((r as any).dates) ? (r as any).dates : [];
+            datesArr.forEach(d => {
+                const dayKey = d.slice(0,10);
+                const key = `${r.room}|${dayKey}`;
+                if (r.reservationStatus && r.reservationStatus !== 'pre') {
+                    occupied.add(key);
+                } else if ((!r.reservationStatus || r.reservationStatus === 'pre') && r.author && r.author.toLowerCase() === userLc) {
+                    userPre.add(key);
+                }
+            });
+        });
+        let blocked = 0;
+        userPre.forEach(k => { if (occupied.has(k)) blocked++; });
+        if (process.env.NODE_ENV !== 'production') {
+            if (blocked !== blockedPreCount) console.log('[FocusedRefresh] blockedPreCount ->', blocked);
+        }
+        setBlockedPreCount(blocked);
+    }, [reservations, username]);
+
+    // Focused short-interval refresh: if user has any blocked pre-reservations, poll current month more frequently (every 60s)
+    // to promptly detect when the day clears (e.g., admin demotes/deletes competing reservation) instead of waiting 5–10m auto-refresh.
+    useEffect(() => {
+        if (!username) return; // no user, no polling
+        if (blockedPreCount === 0) return; // nothing blocked, no need for rapid polling
+        let cancelled = false;
+        let timer: any;
+        const poll = async () => {
+            if (cancelled) return;
+            try {
+                await refreshMonthReservations();
+            } catch (e) {
+                if (process.env.NODE_ENV !== 'production') console.warn('[FocusedRefresh] month refresh failed', e);
+            } finally {
+                if (!cancelled && blockedPreCount > 0) {
+                    timer = setTimeout(poll, 60 * 1000); // 60s
+                }
+            }
+        };
+        timer = setTimeout(poll, 60 * 1000); // start after 60s to avoid immediate duplicate fetch after status change
+        if (process.env.NODE_ENV !== 'production') console.log('[FocusedRefresh] started (blockedPreCount=', blockedPreCount, ')');
+        return () => { cancelled = true; if (timer) clearTimeout(timer); if (process.env.NODE_ENV !== 'production') console.log('[FocusedRefresh] stopped'); };
+    }, [blockedPreCount, username]);
 
     // Detect transitions where a previously occupied (confirmed/flagged) day becomes clear and user has a pre-reservation there
     const detectDayClearEvents = (fetched: ReservationListItem[]) => {
@@ -651,11 +703,40 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                         onNewReservation={() => handleNewReservation(new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay), true)}
                         onClose={closePopup}
                         onStatusChange={async (id, next) => {
+                            let prevStatus: any = undefined;
                             try {
+                                // Capture previous status for revert
+                                setReservations(prev => prev.map(r => {
+                                    if (r._id === id) { prevStatus = r.reservationStatus; return { ...r, reservationStatus: next }; }
+                                    return r;
+                                }));
+                                if (selectedDay !== null) {
+                                    setSelectedReservations(prev => prev.map(r => {
+                                        if (r._id === id) return { ...r, reservationStatus: next };
+                                        return r;
+                                    }));
+                                }
                                 await updateReservationStatus(id, next);
-                                await refreshMonthReservations();
+                                // Force a fresh refetch (bypass cache) of current month to reflect any side effects
+                                const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+                                const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+                                const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
+                                setReservations(fresh);
+                                detectDayClearEvents(fresh);
+                                if (selectedDay !== null) {
+                                    const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+                                    const dayReservations = fresh.filter(res => {
+                                        const datesArr: string[] = Array.isArray((res as any).dates) ? (res as any).dates : [];
+                                        const match = datesArr.some(d => d.slice(0,10) === targetKey);
+                                        return match && res.room === selectedRoom;
+                                    });
+                                    setSelectedReservations(dayReservations);
+                                }
                                 setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
                             } catch (err: any) {
+                                // Revert to previous status if known
+                                setReservations(prev => prev.map(r => r._id === id ? { ...r, reservationStatus: prevStatus } : r));
+                                if (selectedDay !== null) setSelectedReservations(prev => prev.map(r => r._id === id ? { ...r, reservationStatus: prevStatus } : r));
                                 if (err?.response?.status === 409) {
                                     setToast({ message: (translations as any).statusConflict || 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
                                 } else {
@@ -665,11 +746,31 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                         }}
                         onFlagToggle={async (id, checked) => {
                             try {
+                                const nextStatus = checked ? 'flagged' : 'confirmed';
+                                setReservations(prev => prev.map(r => r._id === id ? { ...r, reservationStatus: nextStatus } : r));
+                                if (selectedDay !== null) {
+                                    setSelectedReservations(prev => prev.map(r => r._id === id ? { ...r, reservationStatus: nextStatus } : r));
+                                }
                                 await updateReservationStatus(id, checked ? 'flagged' : 'confirmed');
-                                await refreshMonthReservations();
+                                const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+                                const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+                                const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
+                                setReservations(fresh);
+                                detectDayClearEvents(fresh);
+                                if (selectedDay !== null) {
+                                    const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+                                    const dayReservations = fresh.filter(res => {
+                                        const datesArr: string[] = Array.isArray((res as any).dates) ? (res as any).dates : [];
+                                        const match = datesArr.some(d => d.slice(0,10) === targetKey);
+                                        return match && res.room === selectedRoom;
+                                    });
+                                    setSelectedReservations(dayReservations);
+                                }
                                 setToast({ message: (translations as any).statusUpdated || 'Status updated', type: 'success' });
                             } catch {
+                                // On failure we simply refresh to restore server truth
                                 setToast({ message: (translations as any).statusUpdateFailed || 'Failed to update status', type: 'error' });
+                                await refreshMonthReservations();
                             }
                         }}
                         onDelete={async (id) => {
