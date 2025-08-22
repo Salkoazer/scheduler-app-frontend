@@ -75,23 +75,50 @@ const App: React.FC = () => {
         })();
     }, []);
 
+    // Inactivity/logout handling with broader activity signals (scroll, touch, keydown, etc.)
     useEffect(() => {
+        if (!isAuthenticated) return;
+        const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15m
         const checkInactivity = () => {
-            if (isAuthenticated && Date.now() - lastActivity > 15 * 60 * 1000) { // 15 minutes of inactivity
+            if (Date.now() - lastActivity > INACTIVITY_LIMIT_MS) {
                 handleLogout();
             }
         };
-
-        const interval = setInterval(checkInactivity, 60 * 1000); // Check every minute
-
-        const events = ['click', 'mousemove', 'keypress'];
-        events.forEach(event => window.addEventListener(event, resetActivityTimer));
-
+        const interval = setInterval(checkInactivity, 60 * 1000);
+        const activityHandler = () => setLastActivity(Date.now());
+        const events: (keyof WindowEventMap)[] = [
+            'click','mousemove','mousedown','keydown','touchstart','scroll'
+        ];
+        events.forEach(ev => window.addEventListener(ev, activityHandler, { passive: true } as any));
+        const visHandler = () => { if (document.visibilityState === 'visible') activityHandler(); };
+        document.addEventListener('visibilitychange', visHandler);
         return () => {
             clearInterval(interval);
-            events.forEach(event => window.removeEventListener(event, resetActivityTimer));
+            events.forEach(ev => window.removeEventListener(ev, activityHandler));
+            document.removeEventListener('visibilitychange', visHandler);
         };
     }, [isAuthenticated, lastActivity]);
+
+    // Periodic session validation to restore username if still valid and prevent silent disappearance
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        let cancelled = false;
+        const tick = async () => {
+            try {
+                const sess = await getSession();
+                if (!sess) {
+                    // Session actually gone -> logout (will clear username)
+                    handleLogout();
+                } else {
+                    setUsername(u => u || sess.username);
+                    setRole(r => r || sess.role);
+                }
+            } catch {}
+            if (!cancelled) setTimeout(tick, 4 * 60 * 1000); // every 4 minutes
+        };
+        tick();
+        return () => { cancelled = true; };
+    }, [isAuthenticated]);
 
     useEffect(() => {
         if (!appToast) return;
