@@ -145,6 +145,42 @@ body {
     gap: 6px;
 }
 
+/* New room switcher */
+.room-switch {
+    display: inline-flex;
+    gap: 14px;
+    align-items: flex-end;
+}
+.room-switch-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 2px 6px;
+    position: relative;
+    font-size: 0.8rem;
+    opacity: 0.65;
+    transition: all 0.18s ease;
+    color: #fff;
+    font-weight: 500;
+}
+.room-switch-btn .room-label { pointer-events: none; }
+.room-switch-btn.selected {
+    font-size: 1.05rem;
+    opacity: 1;
+    font-weight: 600;
+}
+.room-switch-btn:not(.selected):hover {
+    opacity: 0.85;
+}
+.room-switch-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
 /* Reservation status styles */
 .calendar-day.reservation.confirmed.r1 { background-color: rgba(46, 134, 222, 0.60); border-width: 2px; }
 .calendar-day.reservation.confirmed.r2 { background-color: rgba(39, 174, 96, 0.60); border-width: 2px; }

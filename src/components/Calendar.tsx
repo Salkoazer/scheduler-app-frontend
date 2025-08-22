@@ -50,6 +50,11 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     const [selectedReservations, setSelectedReservations] = useState<ReservationListItem[]>([]);
     const [selectedRoom, setSelectedRoom] = useState<string>('room 1');
     const roomOptions = ['room 1', 'room 2', 'room 3'];
+    const roomLabels: Record<string,string> = {
+        'room 1': 'Coliseu',
+        'room 2': 'Coliseu Club',
+        'room 3': 'Coliseu Palco'
+    };
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -587,15 +592,24 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                     })()}
                 </div>
                 <div className="header-center">
-                    <select aria-label="Select room" value={selectedRoom} onChange={(e) => setSelectedRoom(e.target.value)}>
-                        {roomOptions.map((r) => (
-                            <option key={r} value={r}>{r.replace('room ', 'Room ')}</option>
-                        ))}
-                    </select>
-                    <div className="room-legend" aria-hidden>
-                        <div className="room-legend-item"><span className="room-dot r1"></span><span>Room 1</span></div>
-                        <div className="room-legend-item"><span className="room-dot r2"></span><span>Room 2</span></div>
-                        <div className="room-legend-item"><span className="room-dot r3"></span><span>Room 3</span></div>
+                    <div className="room-switch" role="tablist" aria-label="Rooms">
+                        {roomOptions.map(r => {
+                            const selected = r === selectedRoom;
+                            const baseCls = 'room-switch-btn' + (selected ? ' selected' : '');
+                            const dotCls = 'room-dot ' + (r === 'room 1' ? 'r1' : r === 'room 2' ? 'r2' : 'r3');
+                            return (
+                                <button
+                                    key={r}
+                                    role="tab"
+                                    aria-selected={selected}
+                                    className={baseCls}
+                                    onClick={() => setSelectedRoom(r)}
+                                >
+                                    <span className={dotCls} aria-hidden></span>
+                                    <span className="room-label">{roomLabels[r] || r}</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
                 <div className="header-right">
