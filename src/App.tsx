@@ -32,6 +32,8 @@ const App: React.FC = () => {
     const [openDayRequest, setOpenDayRequest] = useState<{ room: string; dateISO: string; nonce: number } | null>(null);
     const [notifOpen, setNotifOpen] = useState(false);
     const translations: any = locale === 'en' ? enTranslations : ptTranslations;
+    // Track per-user seen day-clear notifications (room|dayKey) persisted across sessions
+    const dayClearSeenRef = React.useRef<Set<string>>(new Set());
 
     const handleLogin = (username: string, roleIn: 'admin' | 'staff') => {
         setIsAuthenticated(true);
@@ -39,6 +41,12 @@ const App: React.FC = () => {
         setRole(roleIn);
         setLastActivity(Date.now());
         clearReservationCache(); // ensure fresh data for this user
+        // Load previously seen notifications for this user
+        try {
+            const raw = localStorage.getItem(`seenDayClear:${username}`);
+            dayClearSeenRef.current = raw ? new Set(JSON.parse(raw)) : new Set();
+        } catch { dayClearSeenRef.current = new Set(); }
+        setDayClearNotifs([]); // start fresh notification list for this user
     };
 
     const handleLogout = () => {
@@ -47,6 +55,8 @@ const App: React.FC = () => {
         clearReservationCache();
         setUsername(null);
         setRole(null);
+    setDayClearNotifs([]);
+    dayClearSeenRef.current = new Set();
     };
 
     const toggleLocale = () => {
@@ -80,6 +90,11 @@ const App: React.FC = () => {
                     return sess.username;
                 });
                 setRole(sess.role);
+                // Load seen notifications for restored session user
+                try {
+                    const raw = localStorage.getItem(`seenDayClear:${sess.username}`);
+                    dayClearSeenRef.current = raw ? new Set(JSON.parse(raw)) : new Set();
+                } catch { dayClearSeenRef.current = new Set(); }
             }
         })();
     }, []);
@@ -122,6 +137,12 @@ const App: React.FC = () => {
                     setUsername(u => {
                         if (u && u !== sess.username) {
                             clearReservationCache();
+                            // Switching user -> reset seen notifications container
+                            try {
+                                const raw = localStorage.getItem(`seenDayClear:${sess.username}`);
+                                dayClearSeenRef.current = raw ? new Set(JSON.parse(raw)) : new Set();
+                            } catch { dayClearSeenRef.current = new Set(); }
+                            setDayClearNotifs([]);
                         }
                         return u || sess.username;
                     });
@@ -171,18 +192,32 @@ const App: React.FC = () => {
                                     )}
                                     {dayClearNotifs.length > 0 && (
                                         <ul style={{ listStyle:'none', padding:0, margin:0, maxHeight:240, overflowY:'auto', display:'flex', flexDirection:'column', gap:6 }}>
-                                            {dayClearNotifs.slice().sort((a,b)=>b.createdAt - a.createdAt).map(n => (
-                                                <li key={n.id} style={{ border:'1px solid #e0e0e0', borderRadius:4, padding:6, background:'#fafafa', fontSize:'0.65rem', display:'flex', flexDirection:'column', gap:4 }}>
-                                                    <div style={{ whiteSpace:'pre-wrap' }}>{n.message}</div>
-                                                    <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
-                                                        <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
-                                                            setOpenDayRequest({ room: n.room, dateISO: n.dateISO, nonce: Date.now() });
-                                                            setDayClearNotifs(list => list.filter(x => x.id !== n.id));
-                                                        }}>{translations.notifOpen || 'Open'}</button>
-                                                        <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => setDayClearNotifs(list => list.filter(x => x.id !== n.id))}>{translations.notifDismiss || 'Dismiss'}</button>
-                                                    </div>
-                                                </li>
-                                            ))}
+                                            {dayClearNotifs.slice().sort((a,b)=>b.createdAt - a.createdAt).map(n => {
+                                                const key = `${n.room}|${n.dayKey}`;
+                                                const persistSeen = () => {
+                                                    if (!username) return;
+                                                    if (!dayClearSeenRef.current.has(key)) {
+                                                        dayClearSeenRef.current.add(key);
+                                                        try { localStorage.setItem(`seenDayClear:${username}`, JSON.stringify(Array.from(dayClearSeenRef.current))); } catch {}
+                                                    }
+                                                };
+                                                return (
+                                                    <li key={n.id} style={{ border:'1px solid #e0e0e0', borderRadius:4, padding:6, background:'#fafafa', fontSize:'0.65rem', display:'flex', flexDirection:'column', gap:4 }}>
+                                                        <div style={{ whiteSpace:'pre-wrap' }}>{n.message}</div>
+                                                        <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
+                                                            <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
+                                                                persistSeen();
+                                                                setOpenDayRequest({ room: n.room, dateISO: n.dateISO, nonce: Date.now() });
+                                                                setDayClearNotifs(list => list.filter(x => x.id !== n.id));
+                                                            }}>{translations.notifOpen || 'Open'}</button>
+                                                            <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
+                                                                persistSeen();
+                                                                setDayClearNotifs(list => list.filter(x => x.id !== n.id));
+                                                            }}>{translations.notifDismiss || 'Dismiss'}</button>
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
                                         </ul>
                                     )}
                                 </div>
@@ -314,7 +349,15 @@ const App: React.FC = () => {
                             locale={locale}
                             username={username}
                             role={role}
-                            onDayClear={(n) => setDayClearNotifs(prev => [...prev, ...n])}
+                            onDayClear={(n) => {
+                                // Filter out notifications already seen (room|dayKey key)
+                                const deduped = n.filter(x => {
+                                    const k = `${x.room}|${x.dayKey}`;
+                                    return !dayClearSeenRef.current.has(k);
+                                });
+                                if (deduped.length === 0) return;
+                                setDayClearNotifs(prev => [...prev, ...deduped]);
+                            }}
                             openDayRequest={openDayRequest}
                             onConsumeOpenDayRequest={() => setOpenDayRequest(null)}
                         /> : 
