@@ -23,11 +23,20 @@ export interface ReservationListItem {
     dates: string[]; // server always returns dates[]
     room: string;
     event: string;
+    eventClassification?: string;
     type: string;
     status?: string;
     createdAt?: string;
+    updatedAt?: string;
     author?: string;
     reservationStatus?: 'pre' | 'confirmed' | 'flagged';
+    nif?: string;
+    producerName?: string;
+    email?: string;
+    contact?: string;
+    responsablePerson?: string;
+    notes?: string;
+    adminNotes?: string;
 }
 
 // Build and normalize API base URL so that relative paths always start with a single leading slash

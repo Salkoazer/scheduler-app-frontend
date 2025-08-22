@@ -175,17 +175,31 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
         const rows = inMonth
             .flatMap(r => {
                 const datesArr: string[] = Array.isArray((r as any).dates) ? (r as any).dates : [];
-                return datesArr.map(dStr => ({
-                    Date: new Date(dStr).toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }),
-                    Room: r.room,
-                    Event: r.event,
-                    Type: r.type,
-                    Status: (r as any).status || '',
-                    ReservationStatus: r.reservationStatus || 'pre',
-                    Author: r.author || ''
-                }));
+                return datesArr.map(dStr => {
+                    const dateObj = new Date(dStr);
+                    return {
+                        Date: dateObj.toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }),
+                        ISODate: dateObj.toISOString(),
+                        Room: r.room,
+                        Event: r.event,
+                        EventClassification: (r as any).eventClassification || '',
+                        Type: r.type,
+                        ReservationStatus: r.reservationStatus || 'pre',
+                        Flagged: r.reservationStatus === 'flagged' ? 'yes' : '',
+                        Author: r.author || '',
+                        NIF: (r as any).nif || '',
+                        ProducerName: (r as any).producerName || '',
+                        Email: (r as any).email || '',
+                        Contact: (r as any).contact || '',
+                        Responsible: (r as any).responsablePerson || '',
+                        Notes: (r as any).notes || '',
+                        AdminNotes: (r as any).adminNotes || '',
+                        CreatedAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
+                        UpdatedAt: (r as any).updatedAt ? new Date((r as any).updatedAt).toISOString() : ''
+                    };
+                });
             })
-            .sort((a, b) => new Date(a.Date.split('/').reverse().join('-')).getTime() - new Date(b.Date.split('/').reverse().join('-')).getTime());
+            .sort((a, b) => new Date(a.ISODate).getTime() - new Date(b.ISODate).getTime());
 
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
