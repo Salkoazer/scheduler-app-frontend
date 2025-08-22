@@ -3,12 +3,19 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
+const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt' }> }>);
 import { logout } from './services/auth';
 
 const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [username, setUsername] = useState<string | null>(null);
-    const [locale, setLocale] = useState<'en' | 'pt'>('en');
+    const [locale, setLocale] = useState<'en' | 'pt'>(() => {
+        try {
+            const stored = localStorage.getItem('appLocale');
+            if (stored === 'pt' || stored === 'en') return stored;
+        } catch {}
+        return 'en';
+    });
     const [lastActivity, setLastActivity] = useState(Date.now());
 
     const handleLogin = (username: string) => {
@@ -24,8 +31,17 @@ const App: React.FC = () => {
     };
 
     const toggleLocale = () => {
-        setLocale((prevLocale) => (prevLocale === 'en' ? 'pt' : 'en'));
+        setLocale(prev => {
+            const next = prev === 'en' ? 'pt' : 'en';
+            try { localStorage.setItem('appLocale', next); } catch {}
+            return next;
+        });
     };
+
+    useEffect(() => {
+        // In case locale was changed elsewhere (defensive)
+        try { localStorage.setItem('appLocale', locale); } catch {}
+    }, [locale]);
 
     const resetActivityTimer = () => {
         setLastActivity(Date.now());
@@ -89,6 +105,14 @@ const App: React.FC = () => {
                         <NewReservation locale={locale} /> : 
                         <Navigate to="/" replace />
                     } 
+                />
+                <Route
+                    path="/reservation/:id"
+                    element={
+                        isAuthenticated ?
+                        <ReservationDetail locale={locale} /> :
+                        <Navigate to="/" replace />
+                    }
                 />
             </Routes>
             </React.Suspense>
