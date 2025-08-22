@@ -5,6 +5,7 @@ const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
 import { logout, getSession, createUser, listUsers, updateUser, deleteUser } from './services/auth';
+import { clearReservationCache } from './services/reservations';
 import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
 
@@ -37,11 +38,13 @@ const App: React.FC = () => {
         setUsername(username);
         setRole(roleIn);
         setLastActivity(Date.now());
+        clearReservationCache(); // ensure fresh data for this user
     };
 
     const handleLogout = () => {
         logout();
         setIsAuthenticated(false);
+        clearReservationCache();
         setUsername(null);
         setRole(null);
     };
@@ -69,7 +72,13 @@ const App: React.FC = () => {
             const sess = await getSession();
             if (sess) {
                 setIsAuthenticated(true);
-                setUsername(sess.username);
+                setUsername(prev => {
+                    if (prev && prev !== sess.username) {
+                        // user changed silently (e.g., server-side), clear cache
+                        clearReservationCache();
+                    }
+                    return sess.username;
+                });
                 setRole(sess.role);
             }
         })();
@@ -110,7 +119,12 @@ const App: React.FC = () => {
                     // Session actually gone -> logout (will clear username)
                     handleLogout();
                 } else {
-                    setUsername(u => u || sess.username);
+                    setUsername(u => {
+                        if (u && u !== sess.username) {
+                            clearReservationCache();
+                        }
+                        return u || sess.username;
+                    });
                     setRole(r => r || sess.role);
                 }
             } catch {}

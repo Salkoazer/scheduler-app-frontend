@@ -69,17 +69,23 @@ export const createReservation = async (reservation: Reservation): Promise<boole
 // In-flight request de-duplication + tiny TTL cache to reduce backend load and avoid 429s when multiple effects trigger the same range fetch.
 const inFlightFetches = new Map<string, Promise<ReservationListItem[]>>();
 const recentCache = new Map<string, { expires: number; data: ReservationListItem[] }>();
+// Expose a way to clear caches when user identity changes (prevents leaking previous user's view after logout/login swap)
+export function clearReservationCache() {
+    if (process.env.NODE_ENV !== 'production') console.log('[fetchReservations cache cleared]');
+    inFlightFetches.clear();
+    recentCache.clear();
+}
 const DEFAULT_CACHE_TTL_MS = 30_000; // 30s reuse window
 
-export const fetchReservations = async (start: string, end: string): Promise<ReservationListItem[]> => {
+export const fetchReservations = async (start: string, end: string, opts?: { noCache?: boolean }): Promise<ReservationListItem[]> => {
     const key = `${start}|${end}`;
     const now = Date.now();
     const cached = recentCache.get(key);
-    if (cached && cached.expires > now) {
+    if (!opts?.noCache && cached && cached.expires > now) {
         if (process.env.NODE_ENV !== 'production') console.log('[fetchReservations cache hit]', key);
         return cached.data;
     }
-    const existing = inFlightFetches.get(key);
+    const existing = !opts?.noCache && inFlightFetches.get(key);
     if (existing) {
         if (process.env.NODE_ENV !== 'production') console.log('[fetchReservations dedup join]', key);
         return existing;
@@ -96,7 +102,9 @@ export const fetchReservations = async (start: string, end: string): Promise<Res
                     params: { start, end }
                 });
                 const data = response.data as ReservationListItem[];
-                recentCache.set(key, { expires: Date.now() + DEFAULT_CACHE_TTL_MS, data });
+                if (!opts?.noCache) {
+                    recentCache.set(key, { expires: Date.now() + DEFAULT_CACHE_TTL_MS, data });
+                }
                 return data;
             } catch (error: any) {
                 const status = error?.response?.status;
