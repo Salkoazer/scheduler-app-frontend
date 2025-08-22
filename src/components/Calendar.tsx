@@ -22,26 +22,18 @@ interface Translations {
     // add other translation keys here
 }
 
-interface DayClearNotification {
-    id: string;
-    room: string;
-    dateISO: string; // midnight ISO of the day
-    dayKey: string; // YYYY-MM-DD
-    message: string;
-    createdAt: number;
-}
 
 interface CalendarProps {
     locale: 'en' | 'pt';
     username?: string | null;
     role?: 'admin' | 'staff' | null;
-    onDayClear?(notifs: DayClearNotification[]): void; // emit newly detected notifications
+    onDayClear?(notifs: any[]): void; // deprecated (server-side now) kept for backward compatibility no-op
     openDayRequest?: { room: string; dateISO: string; nonce: number } | null;
     onConsumeOpenDayRequest?: () => void;
-    seenDayClearKeys?: string[]; // room|dayKey already seen (persisted) to suppress
+    seenDayClearKeys?: string[]; // unused placeholder (legacy)
 }
 
-const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear, openDayRequest, onConsumeOpenDayRequest, seenDayClearKeys }) => {
+const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear, openDayRequest, onConsumeOpenDayRequest }) => {
     const [currentDate, setCurrentDate] = useState(() => {
         try {
             const stored = sessionStorage.getItem('calendarCurrentMonth');
@@ -71,17 +63,8 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     const [notesState, setNotesState] = useState<Record<string, { open: boolean; draft: string; baseline: string; saving: boolean }>>({});
     const [deleteChoiceFor, setDeleteChoiceFor] = useState<string | null>(null); // reservation id awaiting delete scope choice
     const navigate = useNavigate();
-    // Track previously occupied (confirmed/flagged) day+room combinations to detect clearing events
-    const prevOccupiedRef = React.useRef<Set<string>>(new Set());
-    // Track which authors (lowercased) previously occupied a room|dayKey (confirmed/flagged) so we can avoid notifying them when they themselves vacate it
-    const prevOccupiedAuthorsRef = React.useRef<Map<string, Set<string>>>(new Map());
-    const notifiedDaysRef = React.useRef<Set<string>>(new Set()); // room|dayKey already notified
+    // Notification detection removed (server-driven)
     const pendingOpenRef = React.useRef<{ room: string; day: number; year: number; month: number } | null>(null);
-    // Seed internal notifiedDaysRef with already seen keys (one-time / whenever prop changes)
-    useEffect(() => {
-        if (!seenDayClearKeys || !seenDayClearKeys.length) return;
-        seenDayClearKeys.forEach(k => notifiedDaysRef.current.add(k));
-    }, [seenDayClearKeys]);
 
     // Notes editor helpers
     const toggleNotes = (res: ReservationListItem) => {
@@ -142,7 +125,6 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                 }
                 setReservations(fetchedReservations);
                 // After setting reservations, detect day-clear events
-                detectDayClearEvents(fetchedReservations);
                 // If there is a pending open day request and month matches, open it
                 if (pendingOpenRef.current) {
                     const { year, month, day, room } = pendingOpenRef.current;
@@ -220,7 +202,6 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                 console.log('[Calendar] Refreshed reservations', fetchedReservations.map(r => ({ id: r._id, dates: (r as any).dates, room: r.room, status: r.reservationStatus })));
             }
             setReservations(fetchedReservations);
-            detectDayClearEvents(fetchedReservations);
             if (selectedDay !== null) {
                 const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
                 const dayReservations = fetchedReservations.filter(res => {
@@ -261,82 +242,31 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
         setBlockedPreCount(blocked);
     }, [reservations, username]);
 
-    // Focused short-interval refresh: if user has any blocked pre-reservations, poll current month more frequently (every 60s)
+    // Focused short-interval refresh: if user has any blocked pre-reservations, poll current month more frequently (every 20s)
     // to promptly detect when the day clears (e.g., admin demotes/deletes competing reservation) instead of waiting 5–10m auto-refresh.
     useEffect(() => {
         if (!username) return; // no user, no polling
         if (blockedPreCount === 0) return; // nothing blocked, no need for rapid polling
         let cancelled = false;
         let timer: any;
-        const poll = async () => {
+    const poll = async () => {
             if (cancelled) return;
             try {
                 await refreshMonthReservations();
             } catch (e) {
                 if (process.env.NODE_ENV !== 'production') console.warn('[FocusedRefresh] month refresh failed', e);
             } finally {
-                if (!cancelled && blockedPreCount > 0) {
-                    timer = setTimeout(poll, 60 * 1000); // 60s
+        if (!cancelled && blockedPreCount > 0) {
+            timer = setTimeout(poll, 20 * 1000); // 20s
                 }
             }
         };
-        timer = setTimeout(poll, 60 * 1000); // start after 60s to avoid immediate duplicate fetch after status change
-        if (process.env.NODE_ENV !== 'production') console.log('[FocusedRefresh] started (blockedPreCount=', blockedPreCount, ')');
+    timer = setTimeout(poll, 15 * 1000); // start after 15s to avoid immediate duplicate but still be responsive
+    if (process.env.NODE_ENV !== 'production') console.log('[FocusedRefresh] started (blockedPreCount=', blockedPreCount, ', interval=20s)');
         return () => { cancelled = true; if (timer) clearTimeout(timer); if (process.env.NODE_ENV !== 'production') console.log('[FocusedRefresh] stopped'); };
     }, [blockedPreCount, username]);
 
     // Detect transitions where a previously occupied (confirmed/flagged) day becomes clear and user has a pre-reservation there
-    const detectDayClearEvents = (fetched: ReservationListItem[]) => {
-        if (!username) return;
-        // translations pulled via closure from outer scope
-        const currentOccupied = new Set<string>(); // room|dayKey
-        const currentOccupiedAuthors = new Map<string, Set<string>>(); // room|dayKey -> set(authors)
-        const userPreByDay = new Map<string, { room: string; dateISO: string }>(); // dayKey|room -> meta
-        fetched.forEach(r => {
-            const datesArr: string[] = Array.isArray((r as any).dates) ? (r as any).dates : [];
-            datesArr.forEach(d => {
-                const dayKey = d.slice(0,10);
-                const key = `${r.room}|${dayKey}`;
-                if (r.reservationStatus && r.reservationStatus !== 'pre') {
-                    currentOccupied.add(key);
-                    if (r.author) {
-                        const lc = r.author.toLowerCase();
-                        if (!currentOccupiedAuthors.has(key)) currentOccupiedAuthors.set(key, new Set());
-                        currentOccupiedAuthors.get(key)!.add(lc);
-                    }
-                } else if ((!r.reservationStatus || r.reservationStatus === 'pre') && r.author && r.author.toLowerCase() === username.toLowerCase()) {
-                    // user pre-reservation candidate
-                    if (!userPreByDay.has(key)) {
-                        userPreByDay.set(key, { room: r.room, dateISO: dayKey + 'T00:00:00.000Z' });
-                    }
-                }
-            });
-        });
-        const prev = prevOccupiedRef.current;
-        const prevAuthors = prevOccupiedAuthorsRef.current;
-        const newlyClear: DayClearNotification[] = [];
-        userPreByDay.forEach((meta, key) => {
-            if (prev.has(key) && !currentOccupied.has(key) && !notifiedDaysRef.current.has(key)) {
-                const [room, dayKey] = key.split('|');
-                // Skip if user themselves authored the previously occupying reservation (avoid self-notify)
-                const authorsSet = prevAuthors.get(key);
-                if (authorsSet && authorsSet.has(username.toLowerCase())) {
-                    return; // don't notify author of vacated reservation
-                }
-                const dt = new Date(meta.dateISO);
-                const formatPart = (n:number) => String(n).padStart(2,'0');
-                const template = (translations as any).notifDayClearSingle || 'Day {{DAY}}/{{MONTH}}/{{YEAR}} is now clear of reservations, click to see';
-                const msg = template.replace('{{DAY}}', formatPart(dt.getDate())).replace('{{MONTH}}', formatPart(dt.getMonth()+1)).replace('{{YEAR}}', String(dt.getFullYear()));
-                newlyClear.push({ id: key + '|' + Date.now(), room, dateISO: meta.dateISO, dayKey, message: msg, createdAt: Date.now() });
-                notifiedDaysRef.current.add(key);
-            }
-        });
-        prevOccupiedRef.current = currentOccupied; // replace reference
-        prevOccupiedAuthorsRef.current = currentOccupiedAuthors; // replace authors snapshot
-        if (newlyClear.length && onDayClear) {
-            onDayClear(newlyClear);
-        }
-    };
 
     // Wide sweep: periodically fetch previous, current, and next month to detect clears outside viewed month (12–15 min jitter)
     useEffect(() => {
@@ -354,7 +284,6 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                     const s = new Date(m.getFullYear(), m.getMonth(), 1).toISOString();
                     const e = new Date(m.getFullYear(), m.getMonth()+1, 0).toISOString();
                     const fetched = await fetchReservations(s, e);
-                    detectDayClearEvents(fetched);
                 }
             } catch (e) {
                 if (process.env.NODE_ENV !== 'production') console.warn('[WideSweep] failed', e);
@@ -398,7 +327,6 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                     aggregate.push(...part);
                 }
                 // Single detection pass using entire horizon snapshot (prevents overwriting prevOccupiedRef per-chunk)
-                detectDayClearEvents(aggregate);
                 if (process.env.NODE_ENV !== 'production') {
                     console.log('[HorizonSweep] Completed 5-year forward sweep over', ranges.length, 'ranges');
                 }
@@ -730,7 +658,6 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                                 const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
                                 const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
                                 setReservations(fresh);
-                                detectDayClearEvents(fresh);
                                 if (selectedDay !== null) {
                                     const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
                                     const dayReservations = fresh.filter(res => {
@@ -764,7 +691,6 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                                 const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
                                 const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
                                 setReservations(fresh);
-                                detectDayClearEvents(fresh);
                                 if (selectedDay !== null) {
                                     const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
                                     const dayReservations = fresh.filter(res => {

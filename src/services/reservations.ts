@@ -238,3 +238,48 @@ export async function updateReservation(id: string, payload: Partial<{
     if (!res.ok) throw new Error('Failed updating reservation');
     return res.json();
 }
+
+// Day-clear events (server-driven notifications)
+export interface DayClearEvent {
+    id: string;
+    room: string;
+    dayKey: string;
+    createdAt: string;
+    cause?: any;
+}
+
+export async function fetchDayClearEvents(since?: string): Promise<DayClearEvent[]> {
+    const params: any = {};
+    if (since) params.since = since;
+    const res = await fetch(`${API_URL.replace(/\/$/, '')}/day-clear-events` + (Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''), {
+        credentials: 'include'
+    });
+    if (!res.ok) throw new Error('Failed fetching events');
+    return res.json();
+}
+
+export async function consumeDayClearEvent(id: string) {
+    await ensureCsrfToken();
+    const hdr: any = await csrfHeader();
+    const res = await fetch(`${API_URL.replace(/\/$/, '')}/day-clear-events/${id}/consume`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...hdr }
+    });
+    if (!res.ok) throw new Error('Failed consuming event');
+    return res.json();
+}
+
+export async function consumeDayClearEvents(ids: string[]) {
+    if (!ids.length) return;
+    await ensureCsrfToken();
+    const hdr: any = await csrfHeader();
+    const res = await fetch(`${API_URL.replace(/\/$/, '')}/day-clear-events/consume`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...hdr },
+        body: JSON.stringify({ ids })
+    });
+    if (!res.ok) throw new Error('Failed batch consuming events');
+    return res.json();
+}

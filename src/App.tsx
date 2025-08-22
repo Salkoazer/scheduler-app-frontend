@@ -5,7 +5,7 @@ const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
 import { logout, getSession, createUser, listUsers, updateUser, deleteUser } from './services/auth';
-import { clearReservationCache } from './services/reservations';
+import { clearReservationCache, fetchDayClearEvents, consumeDayClearEvent } from './services/reservations';
 import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
 
@@ -33,7 +33,8 @@ const App: React.FC = () => {
     const [notifOpen, setNotifOpen] = useState(false);
     const translations: any = locale === 'en' ? enTranslations : ptTranslations;
     // Track per-user seen day-clear notifications (room|dayKey) persisted across sessions
-    const dayClearSeenRef = React.useRef<Set<string>>(new Set());
+    // Server-driven day-clear events state (unconsumed)
+    const lastEventsFetchRef = React.useRef<string | null>(null);
 
     const handleLogin = (username: string, roleIn: 'admin' | 'staff') => {
         setIsAuthenticated(true);
@@ -42,11 +43,8 @@ const App: React.FC = () => {
         setLastActivity(Date.now());
         clearReservationCache(); // ensure fresh data for this user
         // Load previously seen notifications for this user
-        try {
-            const raw = localStorage.getItem(`seenDayClear:${username}`);
-            dayClearSeenRef.current = raw ? new Set(JSON.parse(raw)) : new Set();
-        } catch { dayClearSeenRef.current = new Set(); }
-        setDayClearNotifs([]); // start fresh notification list for this user
+    setDayClearNotifs([]); // reset notifications; will repopulate from server polling
+    lastEventsFetchRef.current = null;
     };
 
     const handleLogout = () => {
@@ -56,7 +54,7 @@ const App: React.FC = () => {
         setUsername(null);
         setRole(null);
     setDayClearNotifs([]);
-    dayClearSeenRef.current = new Set();
+    lastEventsFetchRef.current = null;
     };
 
     const toggleLocale = () => {
@@ -91,10 +89,7 @@ const App: React.FC = () => {
                 });
                 setRole(sess.role);
                 // Load seen notifications for restored session user
-                try {
-                    const raw = localStorage.getItem(`seenDayClear:${sess.username}`);
-                    dayClearSeenRef.current = raw ? new Set(JSON.parse(raw)) : new Set();
-                } catch { dayClearSeenRef.current = new Set(); }
+                lastEventsFetchRef.current = null;
             }
         })();
     }, []);
@@ -134,15 +129,11 @@ const App: React.FC = () => {
                     // Session actually gone -> logout (will clear username)
                     handleLogout();
                 } else {
-                    setUsername(u => {
+            setUsername(u => {
                         if (u && u !== sess.username) {
                             clearReservationCache();
-                            // Switching user -> reset seen notifications container
-                            try {
-                                const raw = localStorage.getItem(`seenDayClear:${sess.username}`);
-                                dayClearSeenRef.current = raw ? new Set(JSON.parse(raw)) : new Set();
-                            } catch { dayClearSeenRef.current = new Set(); }
-                            setDayClearNotifs([]);
+                setDayClearNotifs([]);
+                lastEventsFetchRef.current = null;
                         }
                         return u || sess.username;
                     });
@@ -160,6 +151,54 @@ const App: React.FC = () => {
         const t = setTimeout(() => setAppToast(null), 4000);
         return () => clearTimeout(t);
     }, [appToast]);
+
+    // Poll server-side day clear events (lightweight) instead of client diff sweeps
+    useEffect(() => {
+        if (!isAuthenticated || !username) return;
+        let stopped = false;
+        let timer: any;
+        const poll = async () => {
+            if (stopped) return;
+            try {
+                const events = await fetchDayClearEvents(lastEventsFetchRef.current || undefined);
+                if (events.length) {
+                    lastEventsFetchRef.current = new Date().toISOString();
+                    // Transform to notification shape used earlier
+                    const notifs = events.map(e => ({
+                        id: String(e.id),
+                        room: e.room,
+                        dateISO: e.dayKey + 'T00:00:00.000Z',
+                        dayKey: e.dayKey,
+                        message: (translations.notifDayClearSingle || 'Day {{DAY}}/{{MONTH}}/{{YEAR}} is now clear of reservations, click to see')
+                            .replace('{{DAY}}', e.dayKey.slice(8,10))
+                            .replace('{{MONTH}}', e.dayKey.slice(5,7))
+                            .replace('{{YEAR}}', e.dayKey.slice(0,4)),
+                        createdAt: new Date(e.createdAt).getTime()
+                    }));
+                    setDayClearNotifs(prev => {
+                        const existingIds = new Set(prev.map(p => p.id));
+                        const merged = [...prev];
+                        notifs.forEach(n => { if (!existingIds.has(n.id)) merged.push(n); });
+                        return merged;
+                    });
+                } else if (!lastEventsFetchRef.current) {
+                    // Set a baseline to avoid refetching entire history repeatedly
+                    lastEventsFetchRef.current = new Date().toISOString();
+                }
+            } catch (e) {
+                // silent
+            } finally {
+                if (!stopped) {
+                    const base = 75 * 1000; // 75s base
+                    const jitter = Math.random() * 15 * 1000; // +0–15s
+                    timer = setTimeout(poll, base + jitter);
+                }
+            }
+        };
+        // Initial slight delay to avoid login burst
+        timer = setTimeout(poll, 5000);
+        return () => { stopped = true; if (timer) clearTimeout(timer); };
+    }, [isAuthenticated, username, translations]);
 
     return (
         <BrowserRouter>
@@ -193,25 +232,20 @@ const App: React.FC = () => {
                                     {dayClearNotifs.length > 0 && (
                                         <ul style={{ listStyle:'none', padding:0, margin:0, maxHeight:240, overflowY:'auto', display:'flex', flexDirection:'column', gap:6 }}>
                                             {dayClearNotifs.slice().sort((a,b)=>b.createdAt - a.createdAt).map(n => {
-                                                const key = `${n.room}|${n.dayKey}`;
-                                                const persistSeen = () => {
-                                                    if (!username) return;
-                                                    if (!dayClearSeenRef.current.has(key)) {
-                                                        dayClearSeenRef.current.add(key);
-                                                        try { localStorage.setItem(`seenDayClear:${username}`, JSON.stringify(Array.from(dayClearSeenRef.current))); } catch {}
-                                                    }
-                                                };
+                                                const persistSeen = () => { /* server events consumed below */ };
                                                 return (
                                                     <li key={n.id} style={{ border:'1px solid #e0e0e0', borderRadius:4, padding:6, background:'#fafafa', fontSize:'0.65rem', display:'flex', flexDirection:'column', gap:4 }}>
                                                         <div style={{ whiteSpace:'pre-wrap' }}>{n.message}</div>
                                                         <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
                                                             <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
+                                                                // Open should NOT consume or remove the notification; user can still discard later.
                                                                 persistSeen();
+                                                                // n.dateISO already includes midnight suffix
                                                                 setOpenDayRequest({ room: n.room, dateISO: n.dateISO, nonce: Date.now() });
-                                                                setDayClearNotifs(list => list.filter(x => x.id !== n.id));
                                                             }}>{translations.notifOpen || 'Open'}</button>
                                                             <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
                                                                 persistSeen();
+                                                                consumeDayClearEvent(n.id).catch(()=>{});
                                                                 setDayClearNotifs(list => list.filter(x => x.id !== n.id));
                                                             }}>{translations.notifDismiss || 'Dismiss'}</button>
                                                         </div>
@@ -349,15 +383,7 @@ const App: React.FC = () => {
                             locale={locale}
                             username={username}
                             role={role}
-                            onDayClear={(n) => {
-                                // Filter out notifications already seen (room|dayKey key)
-                                const deduped = n.filter(x => {
-                                    const k = `${x.room}|${x.dayKey}`;
-                                    return !dayClearSeenRef.current.has(k);
-                                });
-                                if (deduped.length === 0) return;
-                                setDayClearNotifs(prev => [...prev, ...deduped]);
-                            }}
+                            onDayClear={(n) => setDayClearNotifs(prev => [...prev, ...n])}
                             openDayRequest={openDayRequest}
                             onConsumeOpenDayRequest={() => setOpenDayRequest(null)}
                         /> : 
