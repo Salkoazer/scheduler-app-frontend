@@ -131,7 +131,17 @@ const ReservationCard: React.FC<ReservationCardProps> = (props) => {
     return (
       <button
         style={{ padding:'4px 8px', fontSize:'0.7rem', background:'#c62828', color:'#fff' }}
-        onClick={() => props.startDeleteChoices && props.startDeleteChoices()}
+        onClick={() => {
+          if (props.multiDay) {
+            props.startDeleteChoices && props.startDeleteChoices();
+          } else {
+            // Single-day: go straight to confirmation for full delete
+            if (res._id && props.onDelete) {
+              // Outer DayPopup onDelete already performs confirmation
+              props.onDelete(res._id);
+            }
+          }
+        }}
       >{(translations as any).remove || 'Remove'}</button>
     );
   };

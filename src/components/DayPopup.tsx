@@ -96,7 +96,11 @@ const DayPopup: React.FC<DayPopupProps> = (props) => {
               multiDay={Array.isArray((r as any).dates) && (r as any).dates.length > 1}
               targetDayKey={targetDayKey}
               onDelete={async (id) => {
-                if (!window.confirm((translations as any).confirmDeletePreAll || 'Delete all days for this pre-reservation?')) return;
+                const multi = Array.isArray((r as any).dates) && (r as any).dates.length > 1;
+                const msg = multi
+                  ? (translations as any).confirmDeletePreAll || 'Delete all days for this pre-reservation?'
+                  : (translations as any).confirmDeletePreSingle || 'Delete this pre-reservation?';
+                if (!window.confirm(msg)) return;
                 await onDelete(id);
               }}
               onDeleteDay={async (id) => {

@@ -325,12 +325,14 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
 
     const handleNewReservation = (selectedDay: Date | null = null, fromPopup: boolean = false) => {
         const date = selectedDay ? new Date(selectedDay) : null;
-        navigate('/new-reservation', { 
-            state: { 
-                selectedDate: date ? date.toISOString() : null,
+        // Use a date-only string (YYYY-MM-DD) to avoid timezone shifting when later parsed.
+        const dateOnly = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : null;
+        navigate('/new-reservation', {
+            state: {
+                selectedDate: dateOnly, // pass date-only (no TZ) to prevent off-by-one errors
                 room: selectedRoom,
-                fromCalendarBox: fromPopup // Only true when called from popup
-            } 
+                fromCalendarBox: fromPopup
+            }
         });
     };
 

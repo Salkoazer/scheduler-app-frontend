@@ -36,18 +36,29 @@ interface Translations {
 const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { room, selectedDate: initialSelectedDate, fromCalendarBox } = location.state || { 
-        room: 'room 1', 
+    const { room, selectedDate: initialSelectedDate, fromCalendarBox } = location.state || {
+        room: 'room 1',
         selectedDate: null,
-        fromCalendarBox: false 
+        fromCalendarBox: false
     };
 
-    // Properly parse the ISO string date
-    const parsedInitialDate = initialSelectedDate ? new Date(initialSelectedDate) : null;
+    // Handle either a date-only string (YYYY-MM-DD) or a full ISO string.
+    const initialDateString: string | null = (() => {
+        if (!initialSelectedDate) return null;
+        if (typeof initialSelectedDate === 'string') {
+            if (initialSelectedDate.length === 10 && /\d{4}-\d{2}-\d{2}/.test(initialSelectedDate)) {
+                return initialSelectedDate; // already date-only
+            }
+            const d = new Date(initialSelectedDate);
+            if (!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+            return null;
+        }
+        return null;
+    })();
     
     const [selectedDays, setSelectedDays] = useState<string[]>(() => {
-        if (parsedInitialDate && fromCalendarBox) {
-            return [parsedInitialDate.toISOString().slice(0,10)];
+        if (initialDateString && fromCalendarBox) {
+            return [initialDateString];
         }
         return [];
     }); // YYYY-MM-DD
