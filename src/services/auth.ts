@@ -41,21 +41,20 @@ async function authenticateUser(username: string, password: string) {
 
     const data = await response.json();
     console.log('Authentication response:', response.status);
-    // Cookie is set by server; avoid storing token in localStorage
-    return data;
+    return data; // includes role & username
     } catch (error) {
         console.error('Authentication failed:', error);
         return null;
     }
 }
 
-export const login = async (user: User): Promise<boolean> => {
+export const login = async (user: User): Promise<{ success: boolean; role?: 'admin' | 'staff'; username?: string }> => {
     const authenticatedUser = await authenticateUser(user.username, user.password);
     if (authenticatedUser) {
         isAuthenticated = true;
-        return true;
+        return { success: true, role: authenticatedUser.role, username: authenticatedUser.username };
     }
-    return false;
+    return { success: false };
 };
 
 export const isLoggedIn = (): boolean => {
@@ -76,7 +75,7 @@ export const logout = async (): Promise<void> => {
     }
 };
 
-export const getSession = async (): Promise<{ username: string } | null> => {
+export const getSession = async (): Promise<{ username: string; role: 'admin' | 'staff' } | null> => {
     try {
         const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
         if (!res.ok) return null;
@@ -84,4 +83,52 @@ export const getSession = async (): Promise<{ username: string } | null> => {
     } catch (e) {
         return null;
     }
+};
+
+export const createUser = async (username: string, password: string, role: 'admin' | 'staff') => {
+    const headers: any = await csrfHeader();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/auth/create`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ username, password, role })
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Failed creating user');
+    }
+    return res.json();
+};
+
+export interface ManagedUser { username: string; role: 'admin' | 'staff'; createdAt?: string }
+
+export const listUsers = async (): Promise<ManagedUser[]> => {
+    const res = await fetch(`${API_URL}/auth/users`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to load users');
+    return res.json();
+};
+
+export const updateUser = async (username: string, payload: { newUsername?: string; password?: string; role?: 'admin' | 'staff' }) => {
+    const headers: any = await csrfHeader();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/auth/users/${encodeURIComponent(username)}`, {
+        method: 'PUT',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await res.text() || 'Failed updating user');
+    return res.json();
+};
+
+export const deleteUser = async (username: string) => {
+    const headers: any = await csrfHeader();
+    const res = await fetch(`${API_URL}/auth/users/${encodeURIComponent(username)}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include'
+    });
+    if (!res.ok) throw new Error(await res.text() || 'Failed deleting user');
+    return res.json();
 };

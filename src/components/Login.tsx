@@ -6,7 +6,7 @@ import './Login.css';
 import { loginSchema } from '../validation/schemas';
 
 interface LoginProps {
-  onLogin: (username: string) => void;
+    onLogin: (username: string, role: 'admin' | 'staff') => void;
   locale: 'en' | 'pt';
 }
 
@@ -25,9 +25,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, locale }) => {
             return;
         }
         try {
-            const success = await login({ username, password });
-            if (success) {
-                onLogin(username);
+            const result = await login({ username, password });
+            if (result.success && result.role) {
+                onLogin(result.username || username, result.role);
                 navigate('/calendar');
             } else {
                 setError(translations[locale].invalidCredentials);
