@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Calendar.css';
 import enTranslations from '../locales/en.json';
 import ptTranslations from '../locales/pt.json';
-import { fetchReservations, updateReservationStatus, type ReservationListItem } from '../services/reservations';
+import { fetchReservations, updateReservationStatus, fetchReservationHistory, type ReservationListItem, type ReservationHistoryEvent } from '../services/reservations';
 import * as XLSX from 'xlsx';
 import Toast from './Toast';
 
@@ -35,6 +35,10 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyEvents, setHistoryEvents] = useState<ReservationHistoryEvent[] | null>(null);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState<string | null>(null);
     const navigate = useNavigate();
 
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -122,12 +126,18 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
         setSelectedDay(day);
         const dayReservations = reservations.filter(res => new Date(res.date).toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString() && res.room === selectedRoom);
         setSelectedReservations(dayReservations);
+    setHistoryOpen(false);
+    setHistoryEvents(null);
+    setHistoryError(null);
     };
 
     const closePopup = () => {
         setSelectedDay(null);
         setSelectedReservations([]);
         setError(null);
+    setHistoryOpen(false);
+    setHistoryEvents(null);
+    setHistoryError(null);
     };
 
     const translations: Translations = locale === 'en' ? enTranslations : ptTranslations;
@@ -152,6 +162,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
             const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
             const dayReservations = reservations.filter(res => new Date(res.date).toDateString() === date.toDateString());
             const reservation = dayReservations.find(res => res.room === selectedRoom);
+            const isToday = (new Date().toDateString() === date.toDateString());
 
             const hasR1 = dayReservations.some(res => res.room === 'room 1');
             const hasR2 = dayReservations.some(res => res.room === 'room 2');
@@ -168,7 +179,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
             days.push(
                 <div
                     key={i}
-                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${reservation ? 'reservation' : ''} ${roomClass} ${statusClass}`}
+                    className={`calendar-day ${isPastDate(i) ? 'past-date' : ''} ${isToday ? 'today' : ''} ${reservation ? 'reservation' : ''} ${roomClass} ${statusClass}`}
                     onClick={() => handleDayClick(i)}
                 >
                     <span className="day-number">{i}</span>
@@ -184,6 +195,21 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
         }
 
         return days;
+    };
+
+    const loadHistory = async () => {
+        if (selectedDay === null) return;
+        setHistoryLoading(true);
+        setHistoryError(null);
+        try {
+            const dayIso = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay).toISOString();
+            const events = await fetchReservationHistory(dayIso, selectedRoom);
+            setHistoryEvents(events);
+        } catch (e) {
+            setHistoryError('Failed to load history');
+        } finally {
+            setHistoryLoading(false);
+        }
     };
 
     const renderWeekDays = () => {
@@ -299,18 +325,64 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                         {error && <div className="error-message">{error}</div>}
                         <div className="popup-actions">
                             <button>{translations.notes}</button>
-                            <button 
-                                disabled={isPastDate(selectedDay) || selectedReservations.length > 0} 
-                                onClick={() => handleNewReservation(
-                                    new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay),
-                                    true
-                                )}
+                            {!isPastDate(selectedDay) && (
+                                <button 
+                                    onClick={() => handleNewReservation(
+                                        new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay),
+                                        true
+                                    )}
+                                >
+                                    {translations.newReservation}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    if (!historyOpen) {
+                                        loadHistory();
+                                    }
+                                    setHistoryOpen(o => !o);
+                                }}
+                                style={{ marginLeft: 8 }}
                             >
-                                {translations.newReservation}
+                                {historyOpen ? 'Hide History' : 'History'}
                             </button>
                             <button onClick={closePopup}>{translations.close}</button>
                         </div>
                         <hr />
+                        {historyOpen && (
+                            <div className="history-panel" style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 16 }}>
+                                {historyLoading && <div>Loading history...</div>}
+                                {historyError && <div className="error-message">{historyError}</div>}
+                                {!historyLoading && !historyError && historyEvents && historyEvents.length === 0 && (
+                                    <div>No history for this day</div>
+                                )}
+                                {!historyLoading && !historyError && historyEvents && historyEvents.length > 0 && (
+                                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr>
+                                                <th style={{ textAlign: 'left' }}>Time</th>
+                                                <th style={{ textAlign: 'left' }}>User</th>
+                                                <th style={{ textAlign: 'left' }}>Action</th>
+                                                <th style={{ textAlign: 'left' }}>From</th>
+                                                <th style={{ textAlign: 'left' }}>To</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {historyEvents.map((ev, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{new Date(ev.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                                                    <td>{ev.user || ''}</td>
+                                                    <td>{ev.action}</td>
+                                                    <td>{ev.fromStatus || ''}</td>
+                                                    <td>{ev.toStatus || ''}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        )}
+                        {historyOpen && <hr />}
                         <section>
                             <h3>{translations.activeReservations}</h3>
                             {selectedReservations.filter(res => res.status === 'active').length > 0 ? (
@@ -320,24 +392,35 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                         {res.author ? <p>{res.author}</p> : null}
                                         <div>
                                             <label style={{ marginRight: '6px' }}>Status:</label>
-                                            <select
-                                                value={(!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed'}
+                                            {(() => {
+                                                const anyConfirmedOther = selectedReservations.some(r => r._id !== res._id && r.reservationStatus && ['confirmed','flagged'].includes(r.reservationStatus));
+                                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
+                                                return (
+                                                    <select
+                                                        value={baseValue}
+                                                        disabled={baseValue === 'pre' && anyConfirmedOther}
                                                 onChange={async (e) => {
                                                     if (!res._id) return;
                                                     const base = e.target.value as 'pre' | 'confirmed';
                                                     const next = base === 'pre' ? 'pre' : (res.reservationStatus === 'flagged' ? 'flagged' : 'confirmed');
-                                                    try {
-                                                        await updateReservationStatus(res._id, next);
-                                                        await refreshMonthReservations();
-                                                        setToast({ message: 'Status updated', type: 'success' });
-                                                    } catch {
-                                                        setToast({ message: 'Failed to update status', type: 'error' });
-                                                    }
+                                                        try {
+                                                            await updateReservationStatus(res._id, next);
+                                                            await refreshMonthReservations();
+                                                            setToast({ message: 'Status updated', type: 'success' });
+                                                        } catch (err: any) {
+                                                            if (err?.response?.status === 409) {
+                                                                setToast({ message: 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
+                                                            } else {
+                                                                setToast({ message: 'Failed to update status', type: 'error' });
+                                                            }
+                                                        }
                                                 }}
-                                            >
-                                                <option value="pre">Pre-reservation</option>
-                                                <option value="confirmed">Reservation</option>
-                                            </select>
+                                                    >
+                                                        <option value="pre">Pre-reservation</option>
+                                                        <option value="confirmed" disabled={anyConfirmedOther && baseValue==='pre'}>Reservation</option>
+                                                    </select>
+                                                );
+                                            })()}
                                             {res.reservationStatus && res.reservationStatus !== 'pre' && (
                                                 <label style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                                     <input
@@ -375,8 +458,13 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                         {res.author ? <p>{res.author}</p> : null}
                                         <div>
                                             <label style={{ marginRight: '6px' }}>Status:</label>
-                                            <select
-                                                value={(!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed'}
+                                            {(() => {
+                                                const anyConfirmedOther = selectedReservations.some(r => r._id !== res._id && r.reservationStatus && ['confirmed','flagged'].includes(r.reservationStatus));
+                                                const baseValue = (!res.reservationStatus || res.reservationStatus === 'pre') ? 'pre' : 'confirmed';
+                                                return (
+                                                    <select
+                                                        value={baseValue}
+                                                        disabled={baseValue === 'pre' && anyConfirmedOther}
                                                 onChange={async (e) => {
                                                     if (!res._id) return;
                                                     const base = e.target.value as 'pre' | 'confirmed';
@@ -385,14 +473,20 @@ const Calendar: React.FC<CalendarProps> = ({ locale }) => {
                                                         await updateReservationStatus(res._id, next);
                                                         await refreshMonthReservations();
                                                         setToast({ message: 'Status updated', type: 'success' });
-                                                    } catch {
-                                                        setToast({ message: 'Failed to update status', type: 'error' });
+                                                    } catch (err: any) {
+                                                        if (err?.response?.status === 409) {
+                                                            setToast({ message: 'Another confirmed/flagged reservation exists for this day & room', type: 'error' });
+                                                        } else {
+                                                            setToast({ message: 'Failed to update status', type: 'error' });
+                                                        }
                                                     }
                                                 }}
-                                            >
-                                                <option value="pre">Pre-reservation</option>
-                                                <option value="confirmed">Reservation</option>
-                                            </select>
+                                                    >
+                                                        <option value="pre">Pre-reservation</option>
+                                                        <option value="confirmed" disabled={anyConfirmedOther && baseValue==='pre'}>Reservation</option>
+                                                    </select>
+                                                );
+                                            })()}
                                             {res.reservationStatus && res.reservationStatus !== 'pre' && (
                                                 <label style={{ marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                                     <input
