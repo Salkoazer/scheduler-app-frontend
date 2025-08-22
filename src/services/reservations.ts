@@ -66,17 +66,58 @@ export const createReservation = async (reservation: Reservation): Promise<boole
     }
 };
 
+// In-flight request de-duplication + tiny TTL cache to reduce backend load and avoid 429s when multiple effects trigger the same range fetch.
+const inFlightFetches = new Map<string, Promise<ReservationListItem[]>>();
+const recentCache = new Map<string, { expires: number; data: ReservationListItem[] }>();
+const DEFAULT_CACHE_TTL_MS = 30_000; // 30s reuse window
+
 export const fetchReservations = async (start: string, end: string): Promise<ReservationListItem[]> => {
-    console.log(`Fetching reservations from ${start} to ${end}`);
+    const key = `${start}|${end}`;
+    const now = Date.now();
+    const cached = recentCache.get(key);
+    if (cached && cached.expires > now) {
+        if (process.env.NODE_ENV !== 'production') console.log('[fetchReservations cache hit]', key);
+        return cached.data;
+    }
+    const existing = inFlightFetches.get(key);
+    if (existing) {
+        if (process.env.NODE_ENV !== 'production') console.log('[fetchReservations dedup join]', key);
+        return existing;
+    }
+    if (process.env.NODE_ENV !== 'production') console.log('[fetchReservations start]', key);
+    const exec = (async () => {
+        const maxAttempts = 3;
+        let attempt = 0;
+        while (true) {
+            attempt++;
+            try {
+                const response = await axios.get(`${API_URL}/reservations`, {
+                    withCredentials: true,
+                    params: { start, end }
+                });
+                const data = response.data as ReservationListItem[];
+                recentCache.set(key, { expires: Date.now() + DEFAULT_CACHE_TTL_MS, data });
+                return data;
+            } catch (error: any) {
+                const status = error?.response?.status;
+                if (status === 429 && attempt < maxAttempts) {
+                    // Exponential backoff with jitter
+                    const base = 500; // 0.5s
+                    const delay = base * Math.pow(2, attempt - 1) + Math.random() * 200;
+                    if (process.env.NODE_ENV !== 'production') console.warn(`[fetchReservations 429 retry ${attempt}] delaying ${Math.round(delay)}ms for`, key);
+                    await new Promise(res => setTimeout(res, delay));
+                    continue;
+                }
+                if (process.env.NODE_ENV !== 'production') console.error('[fetchReservations failed]', key, error);
+                throw error;
+            }
+        }
+    })();
+    inFlightFetches.set(key, exec);
     try {
-        const response = await axios.get(`${API_URL}/reservations`, {
-            withCredentials: true,
-            params: { start, end }
-        });
-    return response.data as ReservationListItem[];
-    } catch (error) {
-        console.error('Failed to fetch reservations:', error);
-        throw error;
+        return await exec;
+    } finally {
+        inFlightFetches.delete(key);
     }
 };
 

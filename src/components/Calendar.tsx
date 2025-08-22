@@ -70,6 +70,8 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     const navigate = useNavigate();
     // Track previously occupied (confirmed/flagged) day+room combinations to detect clearing events
     const prevOccupiedRef = React.useRef<Set<string>>(new Set());
+    // Track which authors (lowercased) previously occupied a room|dayKey (confirmed/flagged) so we can avoid notifying them when they themselves vacate it
+    const prevOccupiedAuthorsRef = React.useRef<Map<string, Set<string>>>(new Map());
     const notifiedDaysRef = React.useRef<Set<string>>(new Set()); // room|dayKey already notified
     const pendingOpenRef = React.useRef<{ room: string; day: number; year: number; month: number } | null>(null);
 
@@ -228,7 +230,9 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
     // Detect transitions where a previously occupied (confirmed/flagged) day becomes clear and user has a pre-reservation there
     const detectDayClearEvents = (fetched: ReservationListItem[]) => {
         if (!username) return;
+        // translations pulled via closure from outer scope
         const currentOccupied = new Set<string>(); // room|dayKey
+        const currentOccupiedAuthors = new Map<string, Set<string>>(); // room|dayKey -> set(authors)
         const userPreByDay = new Map<string, { room: string; dateISO: string }>(); // dayKey|room -> meta
         fetched.forEach(r => {
             const datesArr: string[] = Array.isArray((r as any).dates) ? (r as any).dates : [];
@@ -237,6 +241,11 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                 const key = `${r.room}|${dayKey}`;
                 if (r.reservationStatus && r.reservationStatus !== 'pre') {
                     currentOccupied.add(key);
+                    if (r.author) {
+                        const lc = r.author.toLowerCase();
+                        if (!currentOccupiedAuthors.has(key)) currentOccupiedAuthors.set(key, new Set());
+                        currentOccupiedAuthors.get(key)!.add(lc);
+                    }
                 } else if ((!r.reservationStatus || r.reservationStatus === 'pre') && r.author && r.author.toLowerCase() === username.toLowerCase()) {
                     // user pre-reservation candidate
                     if (!userPreByDay.has(key)) {
@@ -246,22 +255,107 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
             });
         });
         const prev = prevOccupiedRef.current;
+        const prevAuthors = prevOccupiedAuthorsRef.current;
         const newlyClear: DayClearNotification[] = [];
         userPreByDay.forEach((meta, key) => {
-            // If previously occupied and now not occupied -> day clear event
             if (prev.has(key) && !currentOccupied.has(key) && !notifiedDaysRef.current.has(key)) {
                 const [room, dayKey] = key.split('|');
+                // Skip if user themselves authored the previously occupying reservation (avoid self-notify)
+                const authorsSet = prevAuthors.get(key);
+                if (authorsSet && authorsSet.has(username.toLowerCase())) {
+                    return; // don't notify author of vacated reservation
+                }
                 const dt = new Date(meta.dateISO);
-                const msg = `Day ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()} is now clear of reservations, click to see`;
+                const formatPart = (n:number) => String(n).padStart(2,'0');
+                const template = (translations as any).notifDayClearSingle || 'Day {{DAY}}/{{MONTH}}/{{YEAR}} is now clear of reservations, click to see';
+                const msg = template.replace('{{DAY}}', formatPart(dt.getDate())).replace('{{MONTH}}', formatPart(dt.getMonth()+1)).replace('{{YEAR}}', String(dt.getFullYear()));
                 newlyClear.push({ id: key + '|' + Date.now(), room, dateISO: meta.dateISO, dayKey, message: msg, createdAt: Date.now() });
                 notifiedDaysRef.current.add(key);
             }
         });
         prevOccupiedRef.current = currentOccupied; // replace reference
+        prevOccupiedAuthorsRef.current = currentOccupiedAuthors; // replace authors snapshot
         if (newlyClear.length && onDayClear) {
             onDayClear(newlyClear);
         }
     };
+
+    // Wide sweep: periodically fetch previous, current, and next month to detect clears outside viewed month (12–15 min jitter)
+    useEffect(() => {
+        if (!username) return;
+        let stopped = false;
+        let to: any;
+        const sweep = async () => {
+            if (stopped) return;
+            const baseYear = currentDate.getFullYear();
+            const baseMonth = currentDate.getMonth();
+            const months = [0,-1,1].map(delta => new Date(baseYear, baseMonth + delta, 1));
+            try {
+                for (const m of months) {
+                    const s = new Date(m.getFullYear(), m.getMonth(), 1).toISOString();
+                    const e = new Date(m.getFullYear(), m.getMonth()+1, 0).toISOString();
+                    const fetched = await fetchReservations(s, e);
+                    detectDayClearEvents(fetched);
+                }
+            } catch (e) {
+                if (process.env.NODE_ENV !== 'production') console.warn('[WideSweep] failed', e);
+            } finally {
+                const jitter = 12*60*1000 + Math.random()*3*60*1000; // 12–15 min
+                to = setTimeout(sweep, jitter);
+            }
+        };
+        sweep();
+        return () => { stopped = true; if (to) clearTimeout(to); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username]);
+
+    // Horizon sweep: fetch from today forward 5 years (partitioned by year to respect 366-day API range guard) to build a global occupancy baseline
+    // Runs on mount and then every ~6–7 hours with jitter. This lets us detect clears far in the future once they happen.
+    useEffect(() => {
+        if (!username) return;
+        let cancelled = false;
+        let timer: any;
+        const HORIZON_YEARS = 5;
+        const runHorizonSweep = async () => {
+            if (cancelled) return;
+            try {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight local (backend normalizes)
+                const horizonEnd = new Date(start.getFullYear() + HORIZON_YEARS, start.getMonth(), start.getDate()); // exclusive end
+                // Build contiguous, non-overlapping year (or partial) ranges up to horizonEnd (inclusive days)
+                const ranges: { start: Date; end: Date }[] = [];
+                let cursor = new Date(start);
+                while (cursor < horizonEnd) {
+                    const yearEnd = new Date(cursor.getFullYear(), 11, 31, 23, 59, 59, 999);
+                    const rangeEnd = yearEnd < horizonEnd ? yearEnd : new Date(horizonEnd.getFullYear(), horizonEnd.getMonth(), horizonEnd.getDate(), 23, 59, 59, 999);
+                    ranges.push({ start: new Date(cursor), end: rangeEnd });
+                    // Advance to Jan 1 of next year
+                    cursor = new Date(rangeEnd.getFullYear() + 1, 0, 1);
+                }
+                const aggregate: ReservationListItem[] = [];
+                for (const r of ranges) {
+                    const part = await fetchReservations(r.start.toISOString(), r.end.toISOString());
+                    aggregate.push(...part);
+                }
+                // Single detection pass using entire horizon snapshot (prevents overwriting prevOccupiedRef per-chunk)
+                detectDayClearEvents(aggregate);
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('[HorizonSweep] Completed 5-year forward sweep over', ranges.length, 'ranges');
+                }
+            } catch (e) {
+                if (process.env.NODE_ENV !== 'production') console.warn('[HorizonSweep] failed', e);
+            } finally {
+                if (!cancelled) {
+                    const base = 6 * 60 * 60 * 1000; // 6h
+                    const jitter = Math.random() * 60 * 60 * 1000; // +0–1h
+                    timer = setTimeout(runHorizonSweep, base + jitter);
+                }
+            }
+        };
+        runHorizonSweep();
+        return () => { cancelled = true; if (timer) clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [username]);
 
     const handleExportMonth = () => {
         // Build month range and filter reservations currently loaded

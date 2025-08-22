@@ -82,4 +82,11 @@
     ,"dayRemoved":"Day removed"
     ,"dayRemoveFailed":"Failed removing day"
     ,"confirmDeletePreAll":"Delete ALL days for this pre-reservation?"
+    ,"confirmDeletePreSingle":"Delete this pre-reservation?"
+    ,"notifBellTooltip":"Reservation updates"
+    ,"notifDayClearSingle":"Day {{DAY}}/{{MONTH}}/{{YEAR}} is now clear of reservations, click to see"
+    ,"notifNone":"No notifications"
+    ,"notifOpen":"Open"
+    ,"notifDismiss":"Dismiss"
+    ,"notifTitle":"Notifications"
 }

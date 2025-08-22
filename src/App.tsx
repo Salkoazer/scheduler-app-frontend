@@ -5,6 +5,8 @@ const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
 import { logout, getSession, createUser, listUsers, updateUser, deleteUser } from './services/auth';
+import enTranslations from './locales/en.json';
+import ptTranslations from './locales/pt.json';
 
 const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -27,6 +29,8 @@ const App: React.FC = () => {
     const [lastActivity, setLastActivity] = useState(Date.now());
     const [dayClearNotifs, setDayClearNotifs] = useState<{ id: string; room: string; dateISO: string; dayKey: string; message: string; createdAt: number }[]>([]);
     const [openDayRequest, setOpenDayRequest] = useState<{ room: string; dateISO: string; nonce: number } | null>(null);
+    const [notifOpen, setNotifOpen] = useState(false);
+    const translations: any = locale === 'en' ? enTranslations : ptTranslations;
 
     const handleLogin = (username: string, roleIn: 'admin' | 'staff') => {
         setIsAuthenticated(true);
@@ -105,23 +109,42 @@ const App: React.FC = () => {
                 </div>
                 {isAuthenticated && (
                     <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:6, position:'relative' }}>
                             {username}
-                            {dayClearNotifs.length > 0 && (
-                                <button
-                                    aria-label={`You have ${dayClearNotifs.length} day clear notification(s)`}
-                                    style={{ background:'transparent', border:'none', cursor:'pointer', position:'relative', fontSize:'1rem' }}
-                                    onClick={() => {
-                                        // For now open the most recent notification
-                                        const latest = dayClearNotifs[dayClearNotifs.length - 1];
-                                        setOpenDayRequest({ room: latest.room, dateISO: latest.dateISO, nonce: Date.now() });
-                                        // Remove it from list (could later show a dropdown)
-                                        setDayClearNotifs(ns => ns.filter(n => n.id !== latest.id));
-                                    }}
-                                    title={dayClearNotifs[dayClearNotifs.length - 1]?.message}
-                                >
-                                    🔔<span style={{ position:'absolute', top:-4, right:-4, background:'#d32f2f', color:'#fff', borderRadius:'50%', padding:'0 5px', fontSize:'0.55rem' }}>{dayClearNotifs.length}</span>
-                                </button>
+                            <button
+                                aria-label={translations.notifBellTooltip || 'Reservation updates'}
+                                style={{ background:'transparent', border:'none', cursor:'pointer', position:'relative', fontSize:'1rem' }}
+                                onClick={() => setNotifOpen(o => !o)}
+                                title={translations.notifBellTooltip || 'Reservation updates'}
+                            >
+                                🔔{dayClearNotifs.length > 0 && <span style={{ position:'absolute', top:-4, right:-6, background:'#d32f2f', color:'#fff', borderRadius:'50%', padding:'0 5px', fontSize:'0.55rem' }}>{dayClearNotifs.length}</span>}
+                            </button>
+                            {notifOpen && (
+                                <div style={{ position:'absolute', top:24, right:0, background:'#fff', border:'1px solid #ccc', borderRadius:4, minWidth:260, zIndex:5000, boxShadow:'0 2px 8px rgba(0,0,0,0.2)', padding:8 }}>
+                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                        <strong style={{ fontSize:'0.8rem' }}>{translations.notifTitle || 'Notifications'}</strong>
+                                        <button style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:'0.8rem' }} onClick={() => setNotifOpen(false)}>×</button>
+                                    </div>
+                                    {dayClearNotifs.length === 0 && (
+                                        <div style={{ fontSize:'0.7rem', padding:4 }}>{translations.notifNone || 'No notifications'}</div>
+                                    )}
+                                    {dayClearNotifs.length > 0 && (
+                                        <ul style={{ listStyle:'none', padding:0, margin:0, maxHeight:240, overflowY:'auto', display:'flex', flexDirection:'column', gap:6 }}>
+                                            {dayClearNotifs.slice().sort((a,b)=>b.createdAt - a.createdAt).map(n => (
+                                                <li key={n.id} style={{ border:'1px solid #e0e0e0', borderRadius:4, padding:6, background:'#fafafa', fontSize:'0.65rem', display:'flex', flexDirection:'column', gap:4 }}>
+                                                    <div style={{ whiteSpace:'pre-wrap' }}>{n.message}</div>
+                                                    <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
+                                                        <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
+                                                            setOpenDayRequest({ room: n.room, dateISO: n.dateISO, nonce: Date.now() });
+                                                            setDayClearNotifs(list => list.filter(x => x.id !== n.id));
+                                                        }}>{translations.notifOpen || 'Open'}</button>
+                                                        <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => setDayClearNotifs(list => list.filter(x => x.id !== n.id))}>{translations.notifDismiss || 'Dismiss'}</button>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
                             )}
                         </span>
                         {role === 'admin' && (
