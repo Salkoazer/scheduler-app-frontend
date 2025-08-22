@@ -103,7 +103,7 @@ const App: React.FC = () => {
                 </div>
                 {isAuthenticated && (
                     <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{username} | {role}</span>
+                        <span>{username}</span>
                         {role === 'admin' && (
                             <button onClick={async () => { 
                                 setShowAccountMgmt(true); 
