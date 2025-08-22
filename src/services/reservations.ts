@@ -84,3 +84,27 @@ export const updateReservationStatus = async (
         throw e;
     }
 };
+
+export interface ReservationHistoryEvent {
+    reservationId?: string;
+    room: string;
+    date: string;
+    user?: string;
+    action: string;
+    fromStatus?: 'pre' | 'confirmed' | 'flagged';
+    toStatus?: 'pre' | 'confirmed' | 'flagged';
+    timestamp: string;
+}
+
+export const fetchReservationHistory = async (date: string, room: string): Promise<ReservationHistoryEvent[]> => {
+    try {
+        const res = await axios.get(`${API_URL}/reservations/history`, {
+            withCredentials: true,
+            params: { date, room }
+        });
+        return res.data as ReservationHistoryEvent[];
+    } catch (e) {
+        console.error('Failed to fetch reservation history:', e);
+        throw e;
+    }
+};
