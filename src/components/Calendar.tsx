@@ -135,6 +135,43 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role }) => {
         } catch {}
     }, [currentDate]);
 
+    // Silent background auto-refresh (5–10 min jitter) to keep users in sync
+    useEffect(() => {
+        let cancelled = false;
+        let timeoutId: any;
+
+        const minMs = 5 * 60 * 1000; // 5 minutes
+        const maxMs = 10 * 60 * 1000; // 10 minutes
+
+        const schedule = () => {
+            const jitter = Math.random() * (maxMs - minMs) + minMs;
+            timeoutId = setTimeout(async () => {
+                if (cancelled) return;
+                // Basic guard: avoid refresh while any notes editor is in saving state
+                const hasSaving = Object.values(notesState).some(s => s.saving);
+                if (!hasSaving) {
+                    try {
+                        await refreshMonthReservations();
+                        if (process.env.NODE_ENV !== 'production') {
+                            console.log('[AutoRefresh] Month silently refreshed');
+                        }
+                    } catch (e) {
+                        if (process.env.NODE_ENV !== 'production') {
+                            console.warn('[AutoRefresh] Refresh failed', e);
+                        }
+                    }
+                } else if (process.env.NODE_ENV !== 'production') {
+                    console.log('[AutoRefresh] Skipped due to active save');
+                }
+                if (!cancelled) schedule();
+            }, jitter);
+        };
+
+        schedule();
+        return () => { cancelled = true; if (timeoutId) clearTimeout(timeoutId); };
+        // Recreate timer if month changes (so interval realigns) or notesState object identity changes drastically
+    }, [currentDate, notesState]);
+
     // Helper to refresh reservations for the current month
     const refreshMonthReservations = async () => {
         const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
