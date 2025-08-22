@@ -5,7 +5,7 @@ const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
 import { logout, getSession, createUser, listUsers, updateUser, deleteUser } from './services/auth';
-import { clearReservationCache, fetchDayClearEvents, consumeDayClearEvent } from './services/reservations';
+import { clearReservationCache, fetchDayClearEvents, consumeDayClearEvent, consumeDayClearEvents } from './services/reservations';
 import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
 
@@ -222,9 +222,21 @@ const App: React.FC = () => {
                             </button>
                             {notifOpen && (
                                 <div style={{ position:'absolute', top:24, right:0, background:'#fff', border:'1px solid #ccc', borderRadius:4, minWidth:260, zIndex:5000, boxShadow:'0 2px 8px rgba(0,0,0,0.2)', padding:8 }}>
-                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6, gap:8 }}>
                                         <strong style={{ fontSize:'0.8rem' }}>{translations.notifTitle || 'Notifications'}</strong>
-                                        <button style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:'0.8rem' }} onClick={() => setNotifOpen(false)}>×</button>
+                                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                            {dayClearNotifs.length > 0 && (
+                                                <button
+                                                    style={{ fontSize:'0.55rem', padding:'2px 6px', background:'#eee', border:'1px solid #ccc', cursor:'pointer' }}
+                                                    onClick={async () => {
+                                                        const ids = dayClearNotifs.map(n => n.id);
+                                                        setDayClearNotifs([]); // optimistic clear
+                                                        try { await consumeDayClearEvents(ids); } catch { /* revert on failure */ }
+                                                    }}
+                                                >{translations.notifMarkAllRead || 'Mark all read'}</button>
+                                            )}
+                                            <button style={{ border:'none', background:'transparent', cursor:'pointer', fontSize:'0.8rem' }} onClick={() => setNotifOpen(false)}>×</button>
+                                        </div>
                                     </div>
                                     {dayClearNotifs.length === 0 && (
                                         <div style={{ fontSize:'0.7rem', padding:4 }}>{translations.notifNone || 'No notifications'}</div>
@@ -240,8 +252,9 @@ const App: React.FC = () => {
                                                             <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
                                                                 // Open should NOT consume or remove the notification; user can still discard later.
                                                                 persistSeen();
-                                                                // n.dateISO already includes midnight suffix
                                                                 setOpenDayRequest({ room: n.room, dateISO: n.dateISO, nonce: Date.now() });
+                                                                // Auto-collapse popover after opening to focus on calendar
+                                                                setNotifOpen(false);
                                                             }}>{translations.notifOpen || 'Open'}</button>
                                                             <button style={{ fontSize:'0.6rem', padding:'2px 6px' }} onClick={() => {
                                                                 persistSeen();
