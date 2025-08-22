@@ -87,8 +87,8 @@ const ReservationCard: React.FC<ReservationCardProps> = (props) => {
         await props.onStatusChange(res._id, next);
       }}
     >
-      <option value="pre">Pre-reservation</option>
-      <option value="confirmed" disabled={variant === 'pre' && props.anyConfirmed}>Reservation</option>
+  <option value="pre">{(translations as any).preReservationOption || (translations as any).preReservations || 'Pre-Reservation'}</option>
+  <option value="confirmed" disabled={variant === 'pre' && props.anyConfirmed}>{(translations as any).reservationOption || (translations as any).reservationSingular || 'Reservation'}</option>
     </select>
   );
 
