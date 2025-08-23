@@ -298,6 +298,9 @@ const App: React.FC = () => {
                                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                                     <input placeholder='Username' value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
                                     <input placeholder='Password' type='password' value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
+                                    {newUser.password && newUser.password.length < 6 && (
+                                        <small style={{ color: 'red', fontSize: '0.65rem' }}>{translations.passwordMinLength || 'Password must be at least 6 characters'}</small>
+                                    )}
                                     <select value={newUser.role} onChange={e => setNewUser(u => ({ ...u, role: e.target.value as 'admin' | 'staff' }))}>
                                         <option value='staff'>Staff</option>
                                         <option value='admin'>Admin</option>
@@ -308,6 +311,7 @@ const App: React.FC = () => {
                                         <button onClick={async () => { 
                                             setCreateError(null); 
                                             if (!newUser.username || !newUser.password) { setCreateError(translations.usernamePasswordRequired || 'Username and password required'); return; }
+                                            if (newUser.password.length < 6) { setCreateError(translations.passwordMinLength || 'Password must be at least 6 characters'); return; }
                                             try { 
                                                 await createUser(newUser.username, newUser.password, newUser.role); 
                                                 setAppToast({ message: translations.userCreated || 'User created', type: 'success' });
@@ -342,6 +346,9 @@ const App: React.FC = () => {
                                     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                                         <input placeholder='Username' value={editUser.username} onChange={e => setEditUser(prev => prev && ({ ...prev, username: e.target.value }))} />
                                         <input placeholder='New Password (leave blank to keep)' type='password' value={editUser.password} onChange={e => setEditUser(prev => prev && ({ ...prev, password: e.target.value }))} />
+                                        {editUser.password && editUser.password.length > 0 && editUser.password.length < 6 && (
+                                            <small style={{ color: 'red', fontSize: '0.65rem' }}>{translations.passwordMinLength || 'Password must be at least 6 characters'}</small>
+                                        )}
                                         <select value={editUser.role} onChange={e => setEditUser(prev => prev && ({ ...prev, role: e.target.value as 'admin' | 'staff' }))}>
                                             <option value='staff'>Staff</option>
                                             <option value='admin'>Admin</option>
@@ -351,6 +358,7 @@ const App: React.FC = () => {
                                             <button onClick={async () => { 
                                                 if (!editUser) return; 
                                                 try { 
+                                                    if (editUser.password && editUser.password.length < 6) { setAppToast({ message: translations.passwordMinLength || 'Password must be at least 6 characters', type: 'error' }); return; }
                                                     await updateUser(editUser.original, { 
                                                         newUsername: editUser.username !== editUser.original ? editUser.username : undefined,
                                                         password: editUser.password || undefined,

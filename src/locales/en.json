@@ -101,6 +101,7 @@
         ,"updateFailed":"Update failed"
         ,"deleteFailed":"Delete failed"
         ,"usernamePasswordRequired":"Username and password required"
+    ,"passwordMinLength":"Password must be at least 6 characters"
         ,"closeWindow":"Close"
         ,"deleteUserConfirm":"Delete user {{USERNAME}}? This cannot be undone."
     ,"preReservationOption":"Pre-reservation"

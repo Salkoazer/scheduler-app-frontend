@@ -101,6 +101,7 @@
     ,"updateFailed":"Falha na atualização"
     ,"deleteFailed":"Falha ao remover"
     ,"usernamePasswordRequired":"Nome de utilizador e palavra-passe obrigatórios"
+    ,"passwordMinLength":"A palavra-passe deve ter pelo menos 6 caracteres"
     ,"closeWindow":"Fechar"
     ,"deleteUserConfirm":"Remover o utilizador {{USERNAME}}? Isto não pode ser desfeito."
     ,"preReservationOption":"Pré-reserva"
