@@ -332,7 +332,7 @@ const App: React.FC = () => {
                                 <h4 style={{ marginTop:0 }}>{translations.existingUsersHeading || 'Existing Users'}</h4>
                                 {userLoadError && <div style={{ color:'red' }}>{userLoadError}</div>}
                                 <ul style={{ listStyle:'none', padding:0, margin:0, display:'flex', flexDirection:'column', gap:4 }}>
-                                    {users.map(u => (
+                                    {users.filter(u => u.username !== username).map(u => (
                                         <li key={u.username} style={{ border:'1px solid #ccc', padding:6, borderRadius:4, cursor:'pointer' }}
                                             onClick={() => setEditUser({ original: u.username, username: u.username, password: '', role: u.role })}>
                                             <strong>{u.username}</strong> <span style={{ opacity:0.7 }}>({u.role})</span>
