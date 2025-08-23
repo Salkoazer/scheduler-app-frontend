@@ -770,8 +770,19 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                                 setNotesState(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
                                 setDeleteChoiceFor(null);
                                 setToast({ message: (translations as any).reservationDeleted || 'Reservation deleted', type: 'success' });
-                                // Background refresh to ensure consistency
-                                refreshMonthReservations();
+                                // Immediate no-cache refresh to reflect server truth (avoid stale cache showing ghost)
+                                const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+                                const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+                                const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
+                                setReservations(fresh);
+                                if (selectedDay !== null) {
+                                    const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+                                    const dayReservations = fresh.filter(res => {
+                                        const datesArr: string[] = Array.isArray((res as any).dates) ? (res as any).dates : [];
+                                        return datesArr.some(d => d.slice(0,10) === targetKey) && res.room === selectedRoom;
+                                    });
+                                    setSelectedReservations(dayReservations);
+                                }
                             } catch {
                                 setToast({ message: (translations as any).deleteFailed || 'Delete failed', type: 'error' });
                             }
@@ -790,7 +801,18 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                                 }
                                 setDeleteChoiceFor(null);
                                 setToast({ message: (translations as any).dayRemoved || 'Day removed', type: 'success' });
-                                refreshMonthReservations();
+                                const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+                                const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+                                const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
+                                setReservations(fresh);
+                                if (selectedDay !== null) {
+                                    const targetKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+                                    const dayReservations = fresh.filter(res => {
+                                        const datesArr: string[] = Array.isArray((res as any).dates) ? (res as any).dates : [];
+                                        return datesArr.some(d => d.slice(0,10) === targetKey) && res.room === selectedRoom;
+                                    });
+                                    setSelectedReservations(dayReservations);
+                                }
                             } catch {
                                 setToast({ message: (translations as any).dayRemoveFailed || 'Failed removing day', type: 'error' });
                             }

@@ -10,8 +10,10 @@ import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
 
 const App: React.FC = () => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [username, setUsername] = useState<string | null>(null);
+    // Synchronously hydrate from cache to avoid username flicker on first paint.
+    const cachedSession = loadCachedSession();
+    const [isAuthenticated, setIsAuthenticated] = useState(!!cachedSession);
+    const [username, setUsername] = useState<string | null>(cachedSession?.username || null);
     const [locale, setLocale] = useState<'en' | 'pt'>(() => {
         try {
             const stored = localStorage.getItem('appLocale');
@@ -77,12 +79,6 @@ const App: React.FC = () => {
 
     // On mount: hydrate from cached session instantly, then validate with server.
     useEffect(() => {
-        const cached = loadCachedSession();
-        if (cached) {
-            setIsAuthenticated(true);
-            setUsername(cached.username);
-            setRole(cached.role);
-        }
         (async () => {
             const sess = await getSession();
             if (sess) {
@@ -95,14 +91,12 @@ const App: React.FC = () => {
                 });
                 setRole(sess.role);
                 lastEventsFetchRef.current = null;
-            } else if (!cached) {
-                // Only logout (clear) if we had no cached session at all and server confirms no session.
+            } else if (!cachedSession) {
                 handleLogout();
-            } else {
-                // We had cached but server didn't confirm; keep showing cached for now (could be transient network issue)
-                // A later periodic validation call will clear if truly invalid.
             }
         })();
+        // cachedSession intentionally not a dep to avoid re-running validation just because cache TTL passed
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Inactivity/logout handling with broader activity signals (scroll, touch, keydown, etc.)
