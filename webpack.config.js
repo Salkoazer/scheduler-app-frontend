@@ -40,7 +40,8 @@ module.exports = {
             'process.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL || ''),
             // Expose Amplify-provided git metadata (if present) for debugging
             'process.env.AWS_COMMIT_ID': JSON.stringify(process.env.AWS_COMMIT_ID || ''),
-            'process.env.AWS_BRANCH': JSON.stringify(process.env.AWS_BRANCH || '')
+            'process.env.AWS_BRANCH': JSON.stringify(process.env.AWS_BRANCH || ''),
+            '__APP_API_BASE__': JSON.stringify(process.env.REACT_APP_API_BASE_URL || process.env.API_BASE_URL || '')
         }),
         new CopyWebpackPlugin({
             patterns: [
