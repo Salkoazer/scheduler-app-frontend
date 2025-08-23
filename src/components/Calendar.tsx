@@ -115,7 +115,13 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
         setNotesState(prev => ({ ...prev, [res._id!]: { ...prev[res._id!], saving: true } }));
         try {
             await updateReservationNotes(res._id, { notes: st.draft });
+            // Update baseline & stop saving
             setNotesState(prev => ({ ...prev, [res._id!]: { ...prev[res._id!], baseline: st.draft, saving: false } }));
+            // Optimistically update local reservation objects so closing the editor shows fresh notes immediately
+            setReservations(prev => prev.map(r => r._id === res._id ? { ...r, notes: st.draft } : r));
+            if (selectedDay !== null) {
+                setSelectedReservations(prev => prev.map(r => r._id === res._id ? { ...r, notes: st.draft } : r));
+            }
             setToast({ message: (translations as any).notesUpdated || 'Notes updated', type: 'success' });
             await refreshMonthReservations();
         } catch {
