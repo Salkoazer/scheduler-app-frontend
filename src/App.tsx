@@ -12,8 +12,14 @@ import ptTranslations from './locales/pt.json';
 const App: React.FC = () => {
     // Synchronously hydrate from cache to avoid username flicker on first paint.
     const cachedSession = loadCachedSession();
+    if (typeof window !== 'undefined') {
+        console.log('[App] Initial cachedSession:', cachedSession);
+    }
     const [isAuthenticated, setIsAuthenticated] = useState(!!cachedSession);
     const [username, setUsername] = useState<string | null>(cachedSession?.username || null);
+    if (typeof window !== 'undefined') {
+        console.log('[App] Initial username state:', cachedSession?.username || null);
+    }
     const [locale, setLocale] = useState<'en' | 'pt'>(() => {
         try {
             const stored = localStorage.getItem('appLocale');
@@ -81,9 +87,15 @@ const App: React.FC = () => {
     useEffect(() => {
         (async () => {
             const { session, state } = await getSessionRobust();
+            if (typeof window !== 'undefined') {
+                console.log('[App] getSessionRobust result:', { session, state });
+            }
             if (session) {
                 setIsAuthenticated(true);
                 setUsername(prev => {
+                    if (typeof window !== 'undefined') {
+                        console.log('[App] setUsername (bootstrap):', { prev, next: session.username });
+                    }
                     if (prev && prev !== session.username) {
                         clearReservationCache();
                     }
@@ -92,8 +104,13 @@ const App: React.FC = () => {
                 setRole(session.role);
                 lastEventsFetchRef.current = null;
             } else if (state === 'unauthorized' && !cachedSession) {
+                if (typeof window !== 'undefined') {
+                    console.log('[App] handleLogout (bootstrap): unauthorized and no cache');
+                }
                 handleLogout();
-            } // else state error -> keep stale cachedSession displayed
+            } else if (typeof window !== 'undefined') {
+                console.log('[App] Keeping stale cachedSession displayed (bootstrap)');
+            }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -128,10 +145,19 @@ const App: React.FC = () => {
         let cancelled = false;
         const tick = async () => {
             const { session, state } = await getSessionRobust();
+            if (typeof window !== 'undefined') {
+                console.log('[App] getSessionRobust (periodic):', { session, state });
+            }
             if (state === 'unauthorized' && !session) {
+                if (typeof window !== 'undefined') {
+                    console.log('[App] handleLogout (periodic): unauthorized and no session');
+                }
                 handleLogout();
             } else if (session) {
                 setUsername(u => {
+                    if (typeof window !== 'undefined') {
+                        console.log('[App] setUsername (periodic):', { prev: u, next: session.username });
+                    }
                     if (u && u !== session.username) {
                         clearReservationCache();
                         setDayClearNotifs([]);
@@ -140,6 +166,8 @@ const App: React.FC = () => {
                     return u || session.username;
                 });
                 setRole(r => r || session.role);
+            } else if (typeof window !== 'undefined') {
+                console.log('[App] Keeping stale cachedSession displayed (periodic)');
             }
             if (!cancelled) setTimeout(tick, 4 * 60 * 1000);
         };
