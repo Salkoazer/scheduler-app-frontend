@@ -10,11 +10,20 @@ function getCookie(name: string): string | null {
 
 export async function ensureCsrfToken(): Promise<string | null> {
   try {
-    // Try reading existing cookie first
+    // Try reading existing cookie first (works only if frontend shares registrable domain)
     const existing = getCookie('csrfToken');
     if (existing) return existing;
-    await fetch(`${API_URL}/csrf`, { credentials: 'include' });
-    return getCookie('csrfToken');
+
+    const res = await fetch(`${API_URL}/csrf`, { credentials: 'include' });
+    // Attempt cookie read after request
+    const after = getCookie('csrfToken');
+    if (after) return after;
+    // Fallback: parse body JSON for token (cross-site cannot read cookie)
+    try {
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.csrfToken === 'string') return data.csrfToken;
+    } catch (_) {}
+    return null;
   } catch (e) {
     console.error('Failed to ensure CSRF token', e);
     return null;
