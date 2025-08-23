@@ -147,7 +147,7 @@ const NewReservation: React.FC<NewReservationProps> = ({ locale }) => {
     <form className="new-reservation-form" onSubmit={handleSubmit}>
             <div className="form-group">
                 <label>{translations.room}:</label>
-                <input type="text" value={room} readOnly />
+                <input type="text" value={room === 'room 1' ? 'Coliseu' : room === 'room 2' ? 'Coliseu Club' : room === 'room 3' ? 'Coliseu Palco' : room} readOnly />
             </div>
             {/* Reservation number removed */}
             <div className="form-group">

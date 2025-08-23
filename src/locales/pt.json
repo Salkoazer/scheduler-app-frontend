@@ -35,7 +35,7 @@
     "reservationError": "Falha ao criar reserva",
     "view": "Ver",
     "status": "Estado",
-    "flaggedPaid": "Assinalada (paga)",
+    "flagged": "Assinalada",
     "history": "Histórico",
     "hideHistory": "Ocultar Histórico",
     "reservationSingular": "Reserva",

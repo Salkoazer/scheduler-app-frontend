@@ -131,9 +131,14 @@ export const updateReservationStatus = async (
 ): Promise<boolean> => {
     try {
         await ensureCsrfToken();
-    const res = await http.put(`/reservations/${id}/status`, { reservationStatus }, { headers: await csrfHeader() });
+        const res = await http.put(`/reservations/${id}/status`, { reservationStatus }, { headers: await csrfHeader() });
         return res.status === 200;
     } catch (e) {
+        const status = (e as any)?.response?.status;
+        if (status === 409) {
+            // Surface specific conflict state to caller
+            return false;
+        }
         console.error('Failed to update reservation status:', e);
         throw e;
     }

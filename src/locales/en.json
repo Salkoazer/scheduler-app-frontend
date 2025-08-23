@@ -35,7 +35,7 @@
     "reservationError": "Failed to create reservation",
     "view": "View",
     "status": "Status",
-    "flaggedPaid": "Flagged (paid)",
+    "flagged": "Flagged",
     "history": "History",
     "hideHistory": "Hide History",
     "reservationSingular": "Reservation",

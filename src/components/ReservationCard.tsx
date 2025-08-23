@@ -102,7 +102,7 @@ const ReservationCard: React.FC<ReservationCardProps> = (props) => {
             await props.onFlagToggle!(res._id, e.target.checked);
         }}
       />
-      <span>{(translations as any).flaggedPaid || 'Flagged (paid)'}</span>
+  <span>{(translations as any).flagged || 'Flagged'}</span>
     </label>
   ) : null;
 
