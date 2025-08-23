@@ -32,5 +32,15 @@ export function getApiBase(): string {
   const defaultFallback = 'http://localhost:3000';
   let base = (candidates[0] || defaultFallback).trim();
   base = base.replace(/\/+$/, '');
+  // Warn if we are on a non-localhost page but still using localhost fallback.
+  try {
+    if (typeof window !== 'undefined') {
+      const hostIsLocal = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+      if (!hostIsLocal && /^(http:\/\/)?localhost:3000$/.test(base)) {
+        // eslint-disable-next-line no-console
+        console.warn('[apiBase] Using localhost fallback on non-localhost host. Set REACT_APP_API_BASE_URL or window.__API_BASE_URL__ to your backend URL.');
+      }
+    }
+  } catch {}
   return base;
 }
