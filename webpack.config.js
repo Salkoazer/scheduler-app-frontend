@@ -31,10 +31,12 @@ module.exports = {
         new HtmlWebpackPlugin({
             template: './public/index.html', // Ensure the correct path to your index.html
         }),
-        new Dotenv(), // Add dotenv-webpack plugin
-        // Define minimal environment vars so client code can branch without accessing raw process
+        new Dotenv({ systemvars: true }), // Load .env and pass through real process env vars (Amplify build)
+        // Define env vars explicitly for the browser bundle
         new webpack.DefinePlugin({
-            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+            'process.env.REACT_APP_API_BASE_URL': JSON.stringify(process.env.REACT_APP_API_BASE_URL || ''),
+            'process.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL || '')
         })
     ],
     devServer: {
