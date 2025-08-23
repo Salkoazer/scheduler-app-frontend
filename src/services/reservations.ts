@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { csrfHeader, ensureCsrfToken } from './csrf';
+import { getApiBase } from './apiBase';
 
 // Payload used when creating a reservation (client-side)
 interface Reservation {
@@ -39,26 +40,24 @@ export interface ReservationListItem {
     adminNotes?: string;
 }
 
-// Build and normalize API base URL so that relative paths always start with a single leading slash
-const API_URL = (() => {
-    const isDev = process.env.NODE_ENV === 'development';
-    let base = isDev ? '/api' : (process.env.REACT_APP_API_URL || '/api');
-    if (!base.startsWith('http') && !base.startsWith('/')) {
-        base = '/' + base; // ensure leading slash for relative path
-    }
-    // remove trailing slash (except root '/') for consistent concatenation
-    if (base.length > 1 && base.endsWith('/')) base = base.slice(0, -1);
-    if (isDev) console.log('Reservations API URL resolved to', base);
-    return base;
-})();
+// Central API base (absolute) used for axios & fetch calls
+const API_BASE = getApiBase();
+if (process.env.NODE_ENV !== 'production') {
+    // Lightweight one-time log
+    // eslint-disable-next-line no-console
+    console.log('[reservations] API base =', API_BASE);
+}
+
+// Dedicated axios instance with consistent base & credentials
+const http = axios.create({
+    baseURL: API_BASE.endsWith('/api') ? API_BASE : API_BASE + '/api',
+    withCredentials: true
+});
 
 export const createReservation = async (reservation: Reservation): Promise<boolean> => {
     try {
         await ensureCsrfToken();
-        const response = await axios.post(`${API_URL}/reservations`, reservation, {
-            withCredentials: true,
-            headers: await csrfHeader()
-        });
+    const response = await http.post(`/reservations`, reservation, { headers: await csrfHeader() });
         return response.status === 201;
     } catch (error) {
         console.error('Failed to create reservation:', error);
@@ -97,10 +96,7 @@ export const fetchReservations = async (start: string, end: string, opts?: { noC
         while (true) {
             attempt++;
             try {
-                const response = await axios.get(`${API_URL}/reservations`, {
-                    withCredentials: true,
-                    params: { start, end }
-                });
+                const response = await http.get(`/reservations`, { params: { start, end } });
                 const data = response.data as ReservationListItem[];
                 if (!opts?.noCache) {
                     recentCache.set(key, { expires: Date.now() + DEFAULT_CACHE_TTL_MS, data });
@@ -135,11 +131,7 @@ export const updateReservationStatus = async (
 ): Promise<boolean> => {
     try {
         await ensureCsrfToken();
-        const res = await axios.put(
-            `${API_URL}/reservations/${id}/status`,
-            { reservationStatus },
-            { withCredentials: true, headers: await csrfHeader() }
-        );
+    const res = await http.put(`/reservations/${id}/status`, { reservationStatus }, { headers: await csrfHeader() });
         return res.status === 200;
     } catch (e) {
         console.error('Failed to update reservation status:', e);
@@ -161,10 +153,7 @@ export interface ReservationHistoryEvent {
 
 export const fetchReservationHistory = async (date: string, room: string): Promise<ReservationHistoryEvent[]> => {
     try {
-        const res = await axios.get(`${API_URL}/reservations/history`, {
-            withCredentials: true,
-            params: { date, room }
-        });
+    const res = await http.get(`/reservations/history`, { params: { date, room } });
         return res.data as ReservationHistoryEvent[];
     } catch (e) {
         console.error('Failed to fetch reservation history:', e);
@@ -188,10 +177,10 @@ export interface ReservationDetail extends ReservationListItem {
 
 export const fetchReservation = async (id: string): Promise<ReservationDetail> => {
     try {
-        const res = await axios.get(`${API_URL}/reservations/${id}`, { withCredentials: true });
+    const res = await http.get(`/reservations/${id}`);
         return res.data as ReservationDetail;
     } catch (e) {
-    console.error('Failed to fetch reservation detail:', e, 'Base URL:', API_URL, 'ID:', id);
+    console.error('Failed to fetch reservation detail:', e, 'Base URL:', API_BASE, 'ID:', id);
         throw e;
     }
 };
@@ -202,7 +191,7 @@ export async function updateReservationNotes(id: string, payload: { notes?: stri
         'Content-Type': 'application/json',
         ...(await csrfHeader())
     };
-    const res = await fetch(`${API_URL}/reservations/${id}/notes`, {
+    const res = await fetch(`${API_BASE}/api/reservations/${id}/notes`, {
         method: 'PUT',
         headers,
         credentials: 'include',
@@ -215,7 +204,7 @@ export async function updateReservationNotes(id: string, payload: { notes?: stri
 export async function deleteReservation(id: string) {
     await ensureCsrfToken();
     const headers: any = { ...(await csrfHeader()) };
-    const res = await fetch(`${API_URL}/reservations/${id}`, {
+    const res = await fetch(`${API_BASE}/api/reservations/${id}`, {
         method: 'DELETE',
         headers,
         credentials: 'include'
@@ -229,7 +218,7 @@ export async function updateReservation(id: string, payload: Partial<{
 }>) {
     await ensureCsrfToken();
     const headers: any = { 'Content-Type':'application/json', ...(await csrfHeader()) };
-    const res = await fetch(`${API_URL}/reservations/${id}`, {
+    const res = await fetch(`${API_BASE}/api/reservations/${id}`, {
         method: 'PUT',
         headers,
         credentials: 'include',
@@ -251,7 +240,7 @@ export interface DayClearEvent {
 export async function fetchDayClearEvents(since?: string): Promise<DayClearEvent[]> {
     const params: any = {};
     if (since) params.since = since;
-    const res = await fetch(`${API_URL.replace(/\/$/, '')}/day-clear-events` + (Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''), {
+    const res = await fetch(`${API_BASE}/api/day-clear-events` + (Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''), {
         credentials: 'include'
     });
     if (!res.ok) throw new Error('Failed fetching events');
@@ -261,7 +250,7 @@ export async function fetchDayClearEvents(since?: string): Promise<DayClearEvent
 export async function consumeDayClearEvent(id: string) {
     await ensureCsrfToken();
     const hdr: any = await csrfHeader();
-    const res = await fetch(`${API_URL.replace(/\/$/, '')}/day-clear-events/${id}/consume`, {
+    const res = await fetch(`${API_BASE}/api/day-clear-events/${id}/consume`, {
         method: 'POST',
         credentials: 'include',
         headers: { ...hdr }
@@ -274,7 +263,7 @@ export async function consumeDayClearEvents(ids: string[]) {
     if (!ids.length) return;
     await ensureCsrfToken();
     const hdr: any = await csrfHeader();
-    const res = await fetch(`${API_URL.replace(/\/$/, '')}/day-clear-events/consume`, {
+    const res = await fetch(`${API_BASE}/api/day-clear-events/consume`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...hdr },
