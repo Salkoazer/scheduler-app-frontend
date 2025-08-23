@@ -2,6 +2,7 @@ const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
 const webpack = require('webpack');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
     mode: 'development', // Set the mode to 'development' or 'production'
@@ -37,6 +38,11 @@ module.exports = {
             'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
             'process.env.REACT_APP_API_BASE_URL': JSON.stringify(process.env.REACT_APP_API_BASE_URL || ''),
             'process.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL || '')
+        }),
+        new CopyWebpackPlugin({
+            patterns: [
+                { from: 'public/favicon.svg', to: 'favicon.svg' }
+            ]
         })
     ],
     devServer: {

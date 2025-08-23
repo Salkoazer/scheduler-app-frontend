@@ -37,10 +37,17 @@ export function getApiBase(): string {
     if (typeof window !== 'undefined') {
       const hostIsLocal = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
       if (!hostIsLocal && /^(http:\/\/)?localhost:3000$/.test(base)) {
-        // eslint-disable-next-line no-console
-        console.warn('[apiBase] Using localhost fallback on non-localhost host. Set REACT_APP_API_BASE_URL or window.__API_BASE_URL__ to your backend URL.');
+        // Attempt smart heuristic: if site domain is calendariocoliseu.site (any subdomain), assume api subdomain.
+        if (/calendariocoliseu\.site$/i.test(window.location.hostname)) {
+          base = `${window.location.protocol}//api.calendariocoliseu.site`;
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn('[apiBase] Using localhost fallback on non-localhost host. Set REACT_APP_API_BASE_URL or window.__API_BASE_URL__ to your backend URL.');
+        }
       }
     }
   } catch {}
+  // eslint-disable-next-line no-console
+  if (typeof window !== 'undefined') console.debug('[apiBase] resolved base =', base);
   return base;
 }
