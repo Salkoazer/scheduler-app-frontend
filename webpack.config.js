@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
+const webpack = require('webpack');
 
 module.exports = {
     mode: 'development', // Set the mode to 'development' or 'production'
@@ -30,7 +31,11 @@ module.exports = {
         new HtmlWebpackPlugin({
             template: './public/index.html', // Ensure the correct path to your index.html
         }),
-        new Dotenv() // Add dotenv-webpack plugin
+        new Dotenv(), // Add dotenv-webpack plugin
+        // Define minimal environment vars so client code can branch without accessing raw process
+        new webpack.DefinePlugin({
+            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+        })
     ],
     devServer: {
         static: {
