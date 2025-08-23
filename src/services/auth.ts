@@ -112,28 +112,77 @@ export const logout = async (): Promise<void> => {
 
 export const getSession = async (): Promise<{ username: string; role: 'admin' | 'staff' } | null> => {
     // Attempt direct validation; on 401 try refresh then retry once.
-    const attempt = async (): Promise<{ username: string; role: 'admin' | 'staff' } | null> => {
+    const attempt = async () => {
         try {
             const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
-            if (!res.ok) return null;
-            return res.json();
-        } catch { return null; }
+            if (res.status === 401) return { state: 'unauthorized' as const };
+            if (!res.ok) return { state: 'error' as const };
+            const data = await res.json();
+            return { state: 'ok' as const, data };
+        } catch { return { state: 'error' as const }; }
     };
-    let sess = await attempt();
-    if (!sess) {
-        // Try refresh flow (silent) if refresh cookie exists (we cannot directly read it; just attempt)
+    let first = await attempt();
+    if (first.state === 'ok') {
+        persistSession(first.data.username, first.data.role);
+        return first.data;
+    }
+    if (first.state === 'unauthorized') {
+        // Try silent refresh then re-attempt
+        try { await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' }); } catch {}
+        const second = await attempt();
+        if (second.state === 'ok') {
+            persistSession(second.data.username, second.data.role);
+            return second.data;
+        }
+        if (second.state === 'unauthorized') {
+            clearCachedSession();
+            return null; // confirmed unauthorized
+        }
+        // transient error after unauthorized -> keep stale cache (do not clear)
+        return loadCachedSession();
+    }
+    // first attempt transient error (network/server). Keep stale cache if present.
+    const cached = loadCachedSession();
+    if (cached) return { username: cached.username, role: cached.role };
+    return null;
+};
+
+// Robust variant returning state to let caller decide whether to clear UI.
+export const getSessionRobust = async (): Promise<{ session: { username: string; role: 'admin' | 'staff' } | null; state: 'ok' | 'unauthorized' | 'error' }> => {
+    const attempt = async () => {
         try {
-            await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
-        } catch {}
-        sess = await attempt();
+            const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
+            if (res.status === 401) return { state: 'unauthorized' as const };
+            if (!res.ok) return { state: 'error' as const };
+            const data = await res.json();
+            return { state: 'ok' as const, data };
+        } catch { return { state: 'error' as const }; }
+    };
+    let first = await attempt();
+    if (first.state === 'ok') {
+        persistSession(first.data.username, first.data.role);
+        return { session: first.data, state: 'ok' };
     }
-    if (sess) {
-        persistSession(sess.username, sess.role);
-        return sess;
-    } else {
-        clearCachedSession();
-        return null;
+    if (first.state === 'unauthorized') {
+        try { await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' }); } catch {}
+        const second = await attempt();
+        if (second.state === 'ok') {
+            persistSession(second.data.username, second.data.role);
+            return { session: second.data, state: 'ok' };
+        }
+        if (second.state === 'unauthorized') {
+            clearCachedSession();
+            return { session: null, state: 'unauthorized' };
+        }
+        // transient after unauthorized
+        const cached = loadCachedSession();
+        if (cached) return { session: { username: cached.username, role: cached.role }, state: 'error' };
+        return { session: null, state: 'error' };
     }
+    // transient server/network error
+    const cached = loadCachedSession();
+    if (cached) return { session: { username: cached.username, role: cached.role }, state: 'error' };
+    return { session: null, state: 'error' };
 };
 
 export const createUser = async (username: string, password: string, role: 'admin' | 'staff') => {

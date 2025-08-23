@@ -4,7 +4,7 @@ import Login from './components/Login';
 const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
-import { logout, getSession, createUser, listUsers, updateUser, deleteUser, loadCachedSession, clearCachedSession } from './services/auth';
+import { logout, getSession, getSessionRobust, createUser, listUsers, updateUser, deleteUser, loadCachedSession, clearCachedSession } from './services/auth';
 import { clearReservationCache, fetchDayClearEvents, consumeDayClearEvent, consumeDayClearEvents } from './services/reservations';
 import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
@@ -80,22 +80,21 @@ const App: React.FC = () => {
     // On mount: hydrate from cached session instantly, then validate with server.
     useEffect(() => {
         (async () => {
-            const sess = await getSession();
-            if (sess) {
+            const { session, state } = await getSessionRobust();
+            if (session) {
                 setIsAuthenticated(true);
                 setUsername(prev => {
-                    if (prev && prev !== sess.username) {
+                    if (prev && prev !== session.username) {
                         clearReservationCache();
                     }
-                    return sess.username;
+                    return session.username;
                 });
-                setRole(sess.role);
+                setRole(session.role);
                 lastEventsFetchRef.current = null;
-            } else if (!cachedSession) {
+            } else if (state === 'unauthorized' && !cachedSession) {
                 handleLogout();
-            }
+            } // else state error -> keep stale cachedSession displayed
         })();
-        // cachedSession intentionally not a dep to avoid re-running validation just because cache TTL passed
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -128,24 +127,21 @@ const App: React.FC = () => {
         if (!isAuthenticated) return;
         let cancelled = false;
         const tick = async () => {
-            try {
-                const sess = await getSession();
-                if (!sess) {
-                    // Session actually gone -> logout (will clear username)
-                    handleLogout();
-                } else {
-            setUsername(u => {
-                        if (u && u !== sess.username) {
-                            clearReservationCache();
-                setDayClearNotifs([]);
-                lastEventsFetchRef.current = null;
-                        }
-                        return u || sess.username;
-                    });
-                    setRole(r => r || sess.role);
-                }
-            } catch {}
-            if (!cancelled) setTimeout(tick, 4 * 60 * 1000); // every 4 minutes
+            const { session, state } = await getSessionRobust();
+            if (state === 'unauthorized' && !session) {
+                handleLogout();
+            } else if (session) {
+                setUsername(u => {
+                    if (u && u !== session.username) {
+                        clearReservationCache();
+                        setDayClearNotifs([]);
+                        lastEventsFetchRef.current = null;
+                    }
+                    return u || session.username;
+                });
+                setRole(r => r || session.role);
+            }
+            if (!cancelled) setTimeout(tick, 4 * 60 * 1000);
         };
         tick();
         return () => { cancelled = true; };
