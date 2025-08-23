@@ -95,9 +95,12 @@ const App: React.FC = () => {
                 });
                 setRole(sess.role);
                 lastEventsFetchRef.current = null;
-            } else if (cached) {
-                // Cached but server says no session -> logout to avoid ghost UI
+            } else if (!cached) {
+                // Only logout (clear) if we had no cached session at all and server confirms no session.
                 handleLogout();
+            } else {
+                // We had cached but server didn't confirm; keep showing cached for now (could be transient network issue)
+                // A later periodic validation call will clear if truly invalid.
             }
         })();
     }, []);

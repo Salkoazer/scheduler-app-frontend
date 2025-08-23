@@ -15,17 +15,22 @@ import { csrfHeader, ensureCsrfToken } from './csrf';
 // We include a version and short TTL so stale data (e.g., renamed user) self-expires quickly.
 const SESSION_STORAGE_KEY = 'appSessionCache';
 const SESSION_VERSION = 1;
-const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes; server validation runs anyway
+// Extend TTL so username persists across typical workday refreshes (8h)
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
 interface CachedSession { v: number; username: string; role: 'admin' | 'staff'; ts: number }
 
-export function loadCachedSession(): { username: string; role: 'admin' | 'staff' } | null {
+export function loadCachedSession(): { username: string; role: 'admin' | 'staff'; stale?: boolean } | null {
     try {
-        const raw = (typeof window !== 'undefined') ? window.sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
+        const raw = (typeof window !== 'undefined') ? (window.localStorage.getItem(SESSION_STORAGE_KEY) || window.sessionStorage.getItem(SESSION_STORAGE_KEY)) : null;
         if (!raw) return null;
         const parsed: CachedSession = JSON.parse(raw);
         if (parsed.v !== SESSION_VERSION) return null;
-        if (Date.now() - parsed.ts > SESSION_TTL_MS) return null; // expired
+        const age = Date.now() - parsed.ts;
+        if (age > SESSION_TTL_MS) {
+            // Return as stale so UI can still show last known username while validation runs
+            return { username: parsed.username, role: parsed.role, stale: true };
+        }
         return { username: parsed.username, role: parsed.role };
     } catch { return null; }
 }
@@ -34,12 +39,17 @@ function persistSession(username: string, role: 'admin' | 'staff') {
     try {
         if (typeof window === 'undefined') return;
         const payload: CachedSession = { v: SESSION_VERSION, username, role, ts: Date.now() };
-        window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+        // Prefer localStorage for cross-tab & long-lived persistence; fall back to sessionStorage if quota issues.
+        try {
+            window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+        } catch {
+            window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+        }
     } catch {}
 }
 
 export function clearCachedSession() {
-    try { if (typeof window !== 'undefined') window.sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch {}
+    try { if (typeof window !== 'undefined') { window.localStorage.removeItem(SESSION_STORAGE_KEY); window.sessionStorage.removeItem(SESSION_STORAGE_KEY); } } catch {}
 }
 
 async function authenticateUser(username: string, password: string) {
