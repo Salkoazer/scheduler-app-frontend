@@ -128,11 +128,24 @@ export const getSession = async (): Promise<{ username: string; role: 'admin' | 
     }
     if (first.state === 'unauthorized') {
         // Try silent refresh then re-attempt
-        try { await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' }); } catch {}
+        let refreshData = null;
+        try {
+            const refreshRes = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
+            if (refreshRes.ok) {
+                const refreshJson = await refreshRes.json();
+                if (refreshJson && refreshJson.username && refreshJson.role) {
+                    refreshData = { username: refreshJson.username, role: refreshJson.role };
+                    persistSession(refreshJson.username, refreshJson.role);
+                }
+            }
+        } catch {}
         const second = await attempt();
         if (second.state === 'ok') {
             persistSession(second.data.username, second.data.role);
             return second.data;
+        }
+        if (refreshData) {
+            return refreshData;
         }
         if (second.state === 'unauthorized') {
             clearCachedSession();
@@ -164,11 +177,24 @@ export const getSessionRobust = async (): Promise<{ session: { username: string;
         return { session: first.data, state: 'ok' };
     }
     if (first.state === 'unauthorized') {
-        try { await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' }); } catch {}
+        let refreshData = null;
+        try {
+            const refreshRes = await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
+            if (refreshRes.ok) {
+                const refreshJson = await refreshRes.json();
+                if (refreshJson && refreshJson.username && refreshJson.role) {
+                    refreshData = { username: refreshJson.username, role: refreshJson.role };
+                    persistSession(refreshJson.username, refreshJson.role);
+                }
+            }
+        } catch {}
         const second = await attempt();
         if (second.state === 'ok') {
             persistSession(second.data.username, second.data.role);
             return { session: second.data, state: 'ok' };
+        }
+        if (refreshData) {
+            return { session: refreshData, state: 'ok' };
         }
         if (second.state === 'unauthorized') {
             clearCachedSession();
