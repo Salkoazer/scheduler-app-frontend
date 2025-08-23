@@ -760,21 +760,40 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                             }
                         }}
                         onDelete={async (id) => {
-                            await deleteReservation(id);
-                            setNotesState(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
-                            setDeleteChoiceFor(null);
-                            await refreshMonthReservations();
-                            setToast({ message: (translations as any).reservationDeleted || 'Reservation deleted', type: 'success' });
+                            try {
+                                await deleteReservation(id);
+                                // Optimistically remove from local state to avoid transient visual artifacts
+                                setReservations(prev => prev.filter(r => r._id !== id));
+                                if (selectedDay !== null) {
+                                    setSelectedReservations(prev => prev.filter(r => r._id !== id));
+                                }
+                                setNotesState(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+                                setDeleteChoiceFor(null);
+                                setToast({ message: (translations as any).reservationDeleted || 'Reservation deleted', type: 'success' });
+                                // Background refresh to ensure consistency
+                                refreshMonthReservations();
+                            } catch {
+                                setToast({ message: (translations as any).deleteFailed || 'Delete failed', type: 'error' });
+                            }
                         }}
                         onDeleteDay={async (id) => {
                             if (!targetDayKey) return;
                             const res = selectedReservations.find(r => r._id === id);
                             if (!res) return;
                             const remaining = (res as any).dates.filter((d: string) => d.slice(0,10) !== targetDayKey);
-                            await updateReservation(id, { dates: remaining });
-                            setDeleteChoiceFor(null);
-                            await refreshMonthReservations();
-                            setToast({ message: (translations as any).dayRemoved || 'Day removed', type: 'success' });
+                            try {
+                                await updateReservation(id, { dates: remaining });
+                                // Optimistically update local state
+                                setReservations(prev => prev.map(r => r._id === id ? { ...r, dates: remaining } : r));
+                                if (selectedDay !== null) {
+                                    setSelectedReservations(prev => prev.map(r => r._id === id ? { ...r, dates: remaining } : r).filter(r => r._id === id ? remaining.some((d: string) => d.slice(0,10) === targetDayKey) : true));
+                                }
+                                setDeleteChoiceFor(null);
+                                setToast({ message: (translations as any).dayRemoved || 'Day removed', type: 'success' });
+                                refreshMonthReservations();
+                            } catch {
+                                setToast({ message: (translations as any).dayRemoveFailed || 'Failed removing day', type: 'error' });
+                            }
                         }}
                         deleteChoiceFor={deleteChoiceFor}
                         setDeleteChoiceFor={setDeleteChoiceFor}
