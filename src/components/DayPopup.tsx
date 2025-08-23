@@ -10,6 +10,7 @@ interface DayPopupProps {
   reservationEntry: ReservationListItem | undefined;
   preEntries: ReservationListItem[];
   anyConfirmed: boolean;
+  isPastDay?: boolean;
   notesState: Record<string, NotesStateEntry>;
   toggleNotes(res: ReservationListItem): void;
   updateDraft(id: string, val: string): void;
@@ -36,14 +37,14 @@ interface DayPopupProps {
 }
 
 const DayPopup: React.FC<DayPopupProps> = (props) => {
-  const { day, currentDate, translations, reservationEntry, preEntries, anyConfirmed, notesState, toggleNotes, updateDraft, resetDraft, saveNotes, role, username, onNewReservation, onClose, onStatusChange, onFlagToggle, onDelete, onDeleteDay, deleteChoiceFor, setDeleteChoiceFor, targetDayKey, historyOpen, toggleHistory, historyLoading, historyError, historyEvents, loadHistory, navigateTo } = props;
+  const { day, currentDate, translations, reservationEntry, preEntries, anyConfirmed, isPastDay, notesState, toggleNotes, updateDraft, resetDraft, saveNotes, role, username, onNewReservation, onClose, onStatusChange, onFlagToggle, onDelete, onDeleteDay, deleteChoiceFor, setDeleteChoiceFor, targetDayKey, historyOpen, toggleHistory, historyLoading, historyError, historyEvents, loadHistory, navigateTo } = props;
 
   return (
     <div className="popup">
       <div className="popup-content">
         <h2>{translations.reservationDay} - {String(day).padStart(2,'0')}/{String(currentDate.getMonth()+1).padStart(2,'0')}/{currentDate.getFullYear()}</h2>
         <div className="popup-actions" style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-          <button onClick={onNewReservation}>{translations.newReservation}</button>
+          <button onClick={onNewReservation} disabled={!!isPastDay} title={isPastDay ? (translations as any).cannotCreatePast || 'Cannot create reservation in the past' : undefined}>{translations.newReservation}</button>
           <button onClick={() => { if (!historyOpen) loadHistory(); toggleHistory(); }}>
             {historyOpen ? (translations as any).hideHistory || 'Hide History' : (translations as any).history || 'History'}
           </button>

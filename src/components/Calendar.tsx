@@ -638,7 +638,17 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                     </div>
                 </div>
                 <div className="header-right">
-                    <button onClick={() => handleNewReservation(null, false)}>{translations.newReservation}</button>
+                    {(() => {
+                        // Disable header New Reservation if a specific day is selected and it's in the past
+                        const past = selectedDay !== null ? isPastDate(selectedDay) : false;
+                        return (
+                            <button
+                                onClick={() => handleNewReservation(selectedDay ? new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay) : null, false)}
+                                disabled={past}
+                                title={past ? (translations as any).cannotCreatePast || 'Cannot create reservation in the past' : undefined}
+                            >{translations.newReservation}</button>
+                        );
+                    })()}
                     <button
                         onClick={handleExportMonth}
                         style={{ marginLeft: 8 }}
@@ -668,6 +678,7 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                         reservationEntry={reservationEntry}
                         preEntries={preEntries}
                         anyConfirmed={!!reservationEntry}
+                        isPastDay={isPastDate(selectedDay)}
                         notesState={notesState}
                         toggleNotes={toggleNotes}
                         updateDraft={updateDraft}
