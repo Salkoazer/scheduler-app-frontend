@@ -4,7 +4,7 @@ import Login from './components/Login';
 const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
-import { logout, getSession, getSessionRobust, createUser, listUsers, updateUser, deleteUser, loadCachedSession, clearCachedSession } from './services/auth';
+import { logout, getSession, getSessionRobust, createUser, listUsers, updateUser, deleteUser, loadCachedSession, clearCachedSession, changePassword } from './services/auth';
 import { clearReservationCache, fetchDayClearEvents, consumeDayClearEvent, consumeDayClearEvents } from './services/reservations';
 import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
@@ -28,6 +28,8 @@ const App: React.FC = () => {
     const [userLoadError, setUserLoadError] = useState<string | null>(null);
     const [createError, setCreateError] = useState<string | null>(null);
     const [editUser, setEditUser] = useState<{ original: string; username: string; password: string; role: 'admin' | 'staff' } | null>(null);
+    // Self password change form state
+    const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '', open: false, submitting: false });
     const [appToast, setAppToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [lastActivity, setLastActivity] = useState(Date.now());
     const [dayClearNotifs, setDayClearNotifs] = useState<{ id: string; room: string; dateISO: string; dayKey: string; message: string; createdAt: number }[]>([]);
@@ -337,6 +339,39 @@ const App: React.FC = () => {
                                         </li>
                                     ))}
                                 </ul>
+                            </section>
+                            <section style={{ border:'1px solid #ddd', padding:10, borderRadius:4 }}>
+                                <h4 style={{ marginTop:0 }}>{translations.changePassword || 'Change Password'}</h4>
+                                {!pwForm.open && (
+                                    <button type="button" onClick={() => setPwForm(f => ({ ...f, open: true }))} style={{ fontSize:'0.75rem' }}>{translations.changePassword || 'Change Password'}</button>
+                                )}
+                                {pwForm.open && (
+                                    <form style={{ display:'flex', flexDirection:'column', gap:8 }} onSubmit={async e => {
+                                        e.preventDefault();
+                                        if (pwForm.submitting) return;
+                                        if (!pwForm.current || !pwForm.next) { setAppToast({ message: translations.usernamePasswordRequired || 'Username and password required', type:'error' }); return; }
+                                        if (pwForm.next.length < 6) { setAppToast({ message: translations.passwordMinLength || 'Password must be at least 6 characters', type:'error' }); return; }
+                                        if (pwForm.next !== pwForm.confirm) { setAppToast({ message: translations.passwordMismatch || 'Passwords do not match', type:'error' }); return; }
+                                        setPwForm(f => ({ ...f, submitting: true }));
+                                        try {
+                                            await changePassword(pwForm.current, pwForm.next);
+                                            setAppToast({ message: translations.passwordChanged || 'Password changed', type:'success' });
+                                            setPwForm({ current:'', next:'', confirm:'', open:false, submitting:false });
+                                        } catch (err:any) {
+                                            const msg = err?.message || translations.passwordChangeFailed || 'Password change failed';
+                                            setAppToast({ message: msg, type:'error' });
+                                            setPwForm(f => ({ ...f, submitting:false }));
+                                        }
+                                    }}>
+                                        <input type='password' autoComplete='current-password' placeholder={translations.currentPassword || 'Current Password'} value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} />
+                                        <input type='password' autoComplete='new-password' placeholder={translations.newPassword || 'New Password'} value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} />
+                                        <input type='password' autoComplete='new-password' placeholder={translations.confirmNewPassword || 'Confirm New Password'} value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} />
+                                        <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                                            <button type='button' onClick={() => setPwForm({ current:'', next:'', confirm:'', open:false, submitting:false })}>{translations.cancel || 'Cancel'}</button>
+                                            <button type='submit' disabled={pwForm.submitting}>{pwForm.submitting ? (translations.saving || 'Saving...') : (translations.save || 'Save')}</button>
+                                        </div>
+                                    </form>
+                                )}
                             </section>
                         </div>
                         {editUser && (

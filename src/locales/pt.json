@@ -119,4 +119,12 @@
     ,"newPasswordPlaceholder":"Nova Palavra-passe (deixe em branco para manter)"
     ,"staffRole":"Staff"
     ,"adminRole":"Admin"
+    ,"changePassword":"Alterar Palavra-passe"
+    ,"currentPassword":"Palavra-passe Atual"
+    ,"newPassword":"Nova Palavra-passe"
+    ,"confirmNewPassword":"Confirmar Nova Palavra-passe"
+    ,"passwordChanged":"Palavra-passe alterada"
+    ,"passwordChangeFailed":"Falha ao alterar palavra-passe"
+    ,"passwordMismatch":"As palavras-passe não coincidem"
+    ,"currentPasswordIncorrect":"Palavra-passe atual incorreta"
 }

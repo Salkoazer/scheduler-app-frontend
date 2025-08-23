@@ -258,3 +258,21 @@ export const deleteUser = async (username: string) => {
     if (!res.ok) throw new Error(await res.text() || 'Failed deleting user');
     return res.json();
 };
+
+export const changePassword = async (currentPassword: string, newPassword: string) => {
+    await ensureCsrfToken();
+    const headers: any = await csrfHeader();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/auth/change-password`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ currentPassword, newPassword })
+    });
+    if (!res.ok) {
+        let msg = 'Password change failed';
+        try { msg = (await res.json()).message || msg; } catch {}
+        throw new Error(msg);
+    }
+    return res.json();
+};
