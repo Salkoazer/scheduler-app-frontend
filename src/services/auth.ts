@@ -11,6 +11,37 @@ if (typeof window !== 'undefined' && (window as any).__DEBUG_API_BASE__ && API_B
 
 import { csrfHeader, ensureCsrfToken } from './csrf';
 
+// Lightweight client-side session cache (non-sensitive: username & role only)
+// We include a version and short TTL so stale data (e.g., renamed user) self-expires quickly.
+const SESSION_STORAGE_KEY = 'appSessionCache';
+const SESSION_VERSION = 1;
+const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes; server validation runs anyway
+
+interface CachedSession { v: number; username: string; role: 'admin' | 'staff'; ts: number }
+
+export function loadCachedSession(): { username: string; role: 'admin' | 'staff' } | null {
+    try {
+        const raw = (typeof window !== 'undefined') ? window.sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
+        if (!raw) return null;
+        const parsed: CachedSession = JSON.parse(raw);
+        if (parsed.v !== SESSION_VERSION) return null;
+        if (Date.now() - parsed.ts > SESSION_TTL_MS) return null; // expired
+        return { username: parsed.username, role: parsed.role };
+    } catch { return null; }
+}
+
+function persistSession(username: string, role: 'admin' | 'staff') {
+    try {
+        if (typeof window === 'undefined') return;
+        const payload: CachedSession = { v: SESSION_VERSION, username, role, ts: Date.now() };
+        window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+    } catch {}
+}
+
+export function clearCachedSession() {
+    try { if (typeof window !== 'undefined') window.sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch {}
+}
+
 async function authenticateUser(username: string, password: string) {
     try {
     console.log(`Attempting to authenticate at: ${API_URL}/auth`);
@@ -44,7 +75,8 @@ export const login = async (user: User): Promise<{ success: boolean; role?: 'adm
     const authenticatedUser = await authenticateUser(user.username, user.password);
     if (authenticatedUser) {
         isAuthenticated = true;
-        return { success: true, role: authenticatedUser.role, username: authenticatedUser.username };
+    persistSession(authenticatedUser.username, authenticatedUser.role);
+    return { success: true, role: authenticatedUser.role, username: authenticatedUser.username };
     }
     return { success: false };
 };
@@ -62,17 +94,34 @@ export const logout = async (): Promise<void> => {
             headers,
         });
         isAuthenticated = false;
+        clearCachedSession();
     } catch (error) {
         console.error('Logout failed:', error);
     }
 };
 
 export const getSession = async (): Promise<{ username: string; role: 'admin' | 'staff' } | null> => {
-    try {
-    const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
-        if (!res.ok) return null;
-        return res.json();
-    } catch (e) {
+    // Attempt direct validation; on 401 try refresh then retry once.
+    const attempt = async (): Promise<{ username: string; role: 'admin' | 'staff' } | null> => {
+        try {
+            const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
+            if (!res.ok) return null;
+            return res.json();
+        } catch { return null; }
+    };
+    let sess = await attempt();
+    if (!sess) {
+        // Try refresh flow (silent) if refresh cookie exists (we cannot directly read it; just attempt)
+        try {
+            await fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
+        } catch {}
+        sess = await attempt();
+    }
+    if (sess) {
+        persistSession(sess.username, sess.role);
+        return sess;
+    } else {
+        clearCachedSession();
         return null;
     }
 };

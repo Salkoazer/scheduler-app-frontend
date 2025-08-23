@@ -4,7 +4,7 @@ import Login from './components/Login';
 const Calendar = React.lazy(() => import('./components/Calendar'));
 const NewReservation = React.lazy(() => import('./components/NewReservation'));
 const ReservationDetail = React.lazy(() => import('./components/ReservationDetail') as Promise<{ default: React.ComponentType<{ locale: 'en' | 'pt'; username?: string | null; role?: 'admin' | 'staff' | null }> }>);
-import { logout, getSession, createUser, listUsers, updateUser, deleteUser } from './services/auth';
+import { logout, getSession, createUser, listUsers, updateUser, deleteUser, loadCachedSession, clearCachedSession } from './services/auth';
 import { clearReservationCache, fetchDayClearEvents, consumeDayClearEvent, consumeDayClearEvents } from './services/reservations';
 import enTranslations from './locales/en.json';
 import ptTranslations from './locales/pt.json';
@@ -53,8 +53,9 @@ const App: React.FC = () => {
         clearReservationCache();
         setUsername(null);
         setRole(null);
-    setDayClearNotifs([]);
-    lastEventsFetchRef.current = null;
+        clearCachedSession();
+        setDayClearNotifs([]);
+        lastEventsFetchRef.current = null;
     };
 
     const toggleLocale = () => {
@@ -74,22 +75,29 @@ const App: React.FC = () => {
         setLastActivity(Date.now());
     };
 
-    // On mount try to restore existing session
+    // On mount: hydrate from cached session instantly, then validate with server.
     useEffect(() => {
+        const cached = loadCachedSession();
+        if (cached) {
+            setIsAuthenticated(true);
+            setUsername(cached.username);
+            setRole(cached.role);
+        }
         (async () => {
             const sess = await getSession();
             if (sess) {
                 setIsAuthenticated(true);
                 setUsername(prev => {
                     if (prev && prev !== sess.username) {
-                        // user changed silently (e.g., server-side), clear cache
                         clearReservationCache();
                     }
                     return sess.username;
                 });
                 setRole(sess.role);
-                // Load seen notifications for restored session user
                 lastEventsFetchRef.current = null;
+            } else if (cached) {
+                // Cached but server says no session -> logout to avoid ghost UI
+                handleLogout();
             }
         })();
     }, []);
