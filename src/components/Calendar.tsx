@@ -507,7 +507,10 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
         setHistoryLoading(true);
         setHistoryError(null);
         try {
-            const dayIso = new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay).toISOString();
+            // IMPORTANT: Use a date-only string (YYYY-MM-DD) so the backend normalizes by UTC day boundaries correctly.
+            // Using new Date(year, month, day).toISOString() would shift the date to the previous day in positive timezones (e.g. Europe),
+            // causing the /reservations/history query to miss same-day events for newly created reservations.
+            const dayIso = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
             const events = await fetchReservationHistory(dayIso, selectedRoom);
             setHistoryEvents(events);
         } catch (e) {
