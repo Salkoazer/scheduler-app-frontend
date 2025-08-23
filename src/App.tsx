@@ -316,8 +316,8 @@ const App: React.FC = () => {
                                         <small style={{ color: 'red', fontSize: '0.65rem' }}>{translations.passwordMinLength || 'Password must be at least 6 characters'}</small>
                                     )}
                                     <select value={newUser.role} onChange={e => setNewUser(u => ({ ...u, role: e.target.value as 'admin' | 'staff' }))}>
-                                        <option value='staff'>Staff</option>
-                                        <option value='admin'>Admin</option>
+                                        <option value='staff'>{translations.staffRole || 'Staff'}</option>
+                                        <option value='admin'>{translations.adminRole || 'Admin'}</option>
                                     </select>
                                     {createError && <div style={{ color:'red' }}>{createError}</div>}
                                     <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
@@ -364,8 +364,8 @@ const App: React.FC = () => {
                                             <small style={{ color: 'red', fontSize: '0.65rem' }}>{translations.passwordMinLength || 'Password must be at least 6 characters'}</small>
                                         )}
                                         <select value={editUser.role} onChange={e => setEditUser(prev => prev && ({ ...prev, role: e.target.value as 'admin' | 'staff' }))}>
-                                            <option value='staff'>Staff</option>
-                                            <option value='admin'>Admin</option>
+                                            <option value='staff'>{translations.staffRole || 'Staff'}</option>
+                                            <option value='admin'>{translations.adminRole || 'Admin'}</option>
                                         </select>
                                         <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
                                             <button type='button' onClick={() => setEditUser(null)}>Cancel</button>

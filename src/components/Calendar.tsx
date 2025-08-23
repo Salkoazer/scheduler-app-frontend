@@ -661,8 +661,8 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                     <button
                         onClick={handleExportMonth}
                         style={{ marginLeft: 8 }}
-                        aria-label="Download month XLS"
-                        title="Download month XLS"
+                        aria-label={(translations as any).downloadMonthXls || 'Download month XLS'}
+                        title={(translations as any).downloadMonthXls || 'Download month XLS'}
                     >
                         ⬇
                     </button>
