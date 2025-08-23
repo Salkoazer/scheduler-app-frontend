@@ -26,7 +26,11 @@ export function getApiBase(): string {
     processEnv.API_BASE_URL
   ].filter(Boolean) as string[];
 
-  let base = (candidates[0] || 'http://localhost:3000').trim();
+  // Fallback: if running in browser and not localhost, assume same origin as page.
+  const defaultFallback = (typeof window !== 'undefined' && window.location && !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname))
+    ? window.location.origin
+    : 'http://localhost:3000';
+  let base = (candidates[0] || defaultFallback).trim();
   base = base.replace(/\/+$/, '');
   return base;
 }
