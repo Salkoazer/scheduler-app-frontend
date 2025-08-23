@@ -92,7 +92,7 @@
         ,"notifMarkAllRead":"Mark all read"
         ,"accountManagement":"Account Management"
         ,"createUserHeading":"Create User"
-        ,"existingUsersHeading":"Existing Users"
+    ,"existingUsersHeading":"Edit Existing Users"
         ,"userCreated":"User created"
         ,"userUpdated":"User updated"
         ,"userDeleted":"User deleted"
