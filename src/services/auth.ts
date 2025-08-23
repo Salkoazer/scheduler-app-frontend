@@ -1,27 +1,19 @@
-interface User {
-    username: string;
-    password: string;
-}
-
+import { getApiBase } from './apiBase';
+interface User { username: string; password: string; }
 let isAuthenticated = false;
-
-const API_URL = (() => {
-    const isLocalhost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
-    if (isLocalhost) {
-        console.log('Current API URL (localhost): /api');
-        return '/api';
-    }
-    const url = process.env.REACT_APP_API_URL;
-    const fallback = '/api';
-    console.log('Current API URL:', url || fallback);
-    return url || fallback;
-})();
+// Centralized API base (absolute) then append /api (backend prefix)
+const API_BASE = getApiBase();
+const API_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
+if (typeof window !== 'undefined' && (window as any).__DEBUG_API_BASE__ && API_BASE) {
+    // Optional hook to debug at runtime
+    console.log('[auth] API base =', API_URL);
+}
 
 import { csrfHeader, ensureCsrfToken } from './csrf';
 
 async function authenticateUser(username: string, password: string) {
     try {
-        console.log(`Attempting to authenticate at: ${API_URL}/auth`);
+    console.log(`Attempting to authenticate at: ${API_URL}/auth`);
         await ensureCsrfToken();
         const headers: any = {
             'Content-Type': 'application/json',
@@ -77,7 +69,7 @@ export const logout = async (): Promise<void> => {
 
 export const getSession = async (): Promise<{ username: string; role: 'admin' | 'staff' } | null> => {
     try {
-        const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
+    const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
         if (!res.ok) return null;
         return res.json();
     } catch (e) {

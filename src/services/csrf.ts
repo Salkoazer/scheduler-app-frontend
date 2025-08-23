@@ -1,7 +1,6 @@
-const API_URL = (() => {
-  const isLocalhost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
-  return isLocalhost ? '/api' : (process.env.REACT_APP_API_URL || '/api');
-})();
+import { getApiBase } from './apiBase';
+const RAW_BASE = getApiBase();
+const API_URL = RAW_BASE.endsWith('/api') ? RAW_BASE : `${RAW_BASE}/api`;
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
