@@ -295,9 +295,23 @@ const App: React.FC = () => {
                         <div style={{ display:'flex', flexDirection:'column', gap:16, maxHeight:'70vh', overflowY:'auto' }}>
                             <section style={{ border:'1px solid #ddd', padding:10, borderRadius:4 }}>
                                 <h4 style={{ marginTop:0 }}>{translations.createUserHeading || 'Create User'}</h4>
-                                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                                    <input placeholder='Username' value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
-                                    <input placeholder='Password' type='password' value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
+                                <form style={{ display:'flex', flexDirection:'column', gap:8 }} onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    setCreateError(null);
+                                    if (!newUser.username || !newUser.password) { setCreateError(translations.usernamePasswordRequired || 'Username and password required'); return; }
+                                    if (newUser.password.length < 6) { setCreateError(translations.passwordMinLength || 'Password must be at least 6 characters'); return; }
+                                    try {
+                                        await createUser(newUser.username, newUser.password, newUser.role);
+                                        setAppToast({ message: translations.userCreated || 'User created', type: 'success' });
+                                        setNewUser({ username:'', password:'', role:'staff' });
+                                        const data = await listUsers(); setUsers(data);
+                                        setShowAccountMgmt(false);
+                                    } catch(e:any){
+                                        setAppToast({ message: e.message || translations.failedCreatingUser || 'Failed creating user', type: 'error' });
+                                    }
+                                }}>
+                                    <input placeholder='Username' autoComplete='username' value={newUser.username} onChange={e => setNewUser(u => ({ ...u, username: e.target.value }))} />
+                                    <input placeholder='Password' type='password' autoComplete='new-password' value={newUser.password} onChange={e => setNewUser(u => ({ ...u, password: e.target.value }))} />
                                     {newUser.password && newUser.password.length < 6 && (
                                         <small style={{ color: 'red', fontSize: '0.65rem' }}>{translations.passwordMinLength || 'Password must be at least 6 characters'}</small>
                                     )}
@@ -307,24 +321,10 @@ const App: React.FC = () => {
                                     </select>
                                     {createError && <div style={{ color:'red' }}>{createError}</div>}
                                     <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-                                        <button onClick={() => { setShowAccountMgmt(false); }}>Close</button>
-                                        <button onClick={async () => { 
-                                            setCreateError(null); 
-                                            if (!newUser.username || !newUser.password) { setCreateError(translations.usernamePasswordRequired || 'Username and password required'); return; }
-                                            if (newUser.password.length < 6) { setCreateError(translations.passwordMinLength || 'Password must be at least 6 characters'); return; }
-                                            try { 
-                                                await createUser(newUser.username, newUser.password, newUser.role); 
-                                                setAppToast({ message: translations.userCreated || 'User created', type: 'success' });
-                                                setNewUser({ username:'', password:'', role:'staff' });
-                                                // Refresh list
-                                                const data = await listUsers(); setUsers(data);
-                                                setShowAccountMgmt(false); // close after success
-                                            } catch(e:any){ 
-                                                setAppToast({ message: e.message || translations.failedCreatingUser || 'Failed creating user', type: 'error' }); 
-                                            }
-                                        }}>Create</button>
+                                        <button type='button' onClick={() => { setShowAccountMgmt(false); }}>Close</button>
+                                        <button type='submit'>Create</button>
                                     </div>
-                                </div>
+                                </form>
                             </section>
                             <section style={{ border:'1px solid #ddd', padding:10, borderRadius:4 }}>
                                 <h4 style={{ marginTop:0 }}>{translations.existingUsersHeading || 'Existing Users'}</h4>
@@ -343,9 +343,23 @@ const App: React.FC = () => {
                             <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1100 }}>
                                 <div style={{ background:'#fff', padding:20, borderRadius:4, minWidth:300 }}>
                                     <h4>Edit User</h4>
-                                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                                        <input placeholder='Username' value={editUser.username} onChange={e => setEditUser(prev => prev && ({ ...prev, username: e.target.value }))} />
-                                        <input placeholder='New Password (leave blank to keep)' type='password' value={editUser.password} onChange={e => setEditUser(prev => prev && ({ ...prev, password: e.target.value }))} />
+                                    <form style={{ display:'flex', flexDirection:'column', gap:8 }} onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        if (!editUser) return;
+                                        try {
+                                            if (editUser.password && editUser.password.length < 6) { setAppToast({ message: translations.passwordMinLength || 'Password must be at least 6 characters', type: 'error' }); return; }
+                                            await updateUser(editUser.original, {
+                                                newUsername: editUser.username !== editUser.original ? editUser.username : undefined,
+                                                password: editUser.password || undefined,
+                                                role: editUser.role
+                                            });
+                                            setAppToast({ message: translations.userUpdated || 'User updated', type: 'success' });
+                                            const data = await listUsers(); setUsers(data);
+                                            setEditUser(null);
+                                        } catch(e:any){ setAppToast({ message: e.message || translations.updateFailed || 'Update failed', type:'error' }); }
+                                    }}>
+                                        <input placeholder='Username' autoComplete='username' value={editUser.username} onChange={e => setEditUser(prev => prev && ({ ...prev, username: e.target.value }))} />
+                                        <input placeholder='New Password (leave blank to keep)' type='password' autoComplete='new-password' value={editUser.password} onChange={e => setEditUser(prev => prev && ({ ...prev, password: e.target.value }))} />
                                         {editUser.password && editUser.password.length > 0 && editUser.password.length < 6 && (
                                             <small style={{ color: 'red', fontSize: '0.65rem' }}>{translations.passwordMinLength || 'Password must be at least 6 characters'}</small>
                                         )}
@@ -354,33 +368,22 @@ const App: React.FC = () => {
                                             <option value='admin'>Admin</option>
                                         </select>
                                         <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
-                                            <button onClick={() => setEditUser(null)}>Cancel</button>
-                                            <button onClick={async () => { 
-                                                if (!editUser) return; 
-                                                try { 
-                                                    if (editUser.password && editUser.password.length < 6) { setAppToast({ message: translations.passwordMinLength || 'Password must be at least 6 characters', type: 'error' }); return; }
-                                                    await updateUser(editUser.original, { 
-                                                        newUsername: editUser.username !== editUser.original ? editUser.username : undefined,
-                                                        password: editUser.password || undefined,
-                                                        role: editUser.role
-                                                    });
-                                                    setAppToast({ message: translations.userUpdated || 'User updated', type: 'success' });
-                                                    const data = await listUsers(); setUsers(data);
-                                                    setEditUser(null);
-                                                } catch(e:any){ setAppToast({ message: e.message || translations.updateFailed || 'Update failed', type:'error' }); }
-                                            }}>Save</button>
-                                            <button style={{ background:'#b30000', color:'#fff' }} onClick={() => { 
-                                                if (editUser.original === username) { setAppToast({ message: translations.cannotDeleteSelf || 'Cannot delete your own account', type: 'error' }); return; }
-                                                if (confirm((translations.deleteUserConfirm || 'Delete user {{USERNAME}}? This cannot be undone.').replace('{{USERNAME}}', editUser.original))) {
-                                                    deleteUser(editUser.original).then(async () => {
-                                                        setAppToast({ message: translations.userDeleted || 'User deleted', type: 'success' });
-                                                        const data = await listUsers(); setUsers(data);
-                                                        setEditUser(null);
-                                                    }).catch(e => setAppToast({ message: e.message || translations.deleteFailed || 'Delete failed', type:'error' }));
-                                                }
-                                            }}>Delete</button>
+                                            <button type='button' onClick={() => setEditUser(null)}>Cancel</button>
+                                            <div style={{ display:'flex', gap:8 }}>
+                                                <button type='submit'>Save</button>
+                                                <button type='button' style={{ background:'#b30000', color:'#fff' }} onClick={() => {
+                                                    if (editUser.original === username) { setAppToast({ message: translations.cannotDeleteSelf || 'Cannot delete your own account', type: 'error' }); return; }
+                                                    if (confirm((translations.deleteUserConfirm || 'Delete user {{USERNAME}}? This cannot be undone.').replace('{{USERNAME}}', editUser.original))) {
+                                                        deleteUser(editUser.original).then(async () => {
+                                                            setAppToast({ message: translations.userDeleted || 'User deleted', type: 'success' });
+                                                            const data = await listUsers(); setUsers(data);
+                                                            setEditUser(null);
+                                                        }).catch(e => setAppToast({ message: e.message || translations.deleteFailed || 'Delete failed', type:'error' }));
+                                                    }
+                                                }}>Delete</button>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </form>
                                 </div>
                             </div>
                         )}
