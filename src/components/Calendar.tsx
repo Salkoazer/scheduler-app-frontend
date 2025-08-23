@@ -691,7 +691,8 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                                         return r;
                                     }));
                                 }
-                                await updateReservationStatus(id, next);
+                                const ok = await updateReservationStatus(id, next);
+                                if (!ok) throw { response: { status: 409 } };
                                 // Force a fresh refetch (bypass cache) of current month to reflect any side effects
                                 const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
                                 const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
@@ -725,7 +726,8 @@ const Calendar: React.FC<CalendarProps> = ({ locale, username, role, onDayClear,
                                 if (selectedDay !== null) {
                                     setSelectedReservations(prev => prev.map(r => r._id === id ? { ...r, reservationStatus: nextStatus } : r));
                                 }
-                                await updateReservationStatus(id, checked ? 'flagged' : 'confirmed');
+                                const ok = await updateReservationStatus(id, checked ? 'flagged' : 'confirmed');
+                                if (!ok) throw { response: { status: 409 } };
                                 const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
                                 const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
                                 const fresh = await fetchReservations(startOfMonth, endOfMonth, { noCache: true });
