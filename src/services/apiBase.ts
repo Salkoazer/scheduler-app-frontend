@@ -1,5 +1,8 @@
 // Central API base resolution used by all service modules.
-// Order of precedence: Vite env (VITE_API_BASE_URL) -> window injected -> legacy env vars -> default localhost.
+// Order of precedence: injected constant (__APP_API_BASE__) -> window injected -> env vars -> default localhost.
+// (Vite-specific import.meta.env removed to avoid webpack warning; not used in this build setup.)
+// eslint-disable-next-line @typescript-eslint/naming-convention
+declare const __APP_API_BASE__: string | undefined;
 export function getApiBase(): string {
   // Attempt to read env variables in a bundler-neutral, defensive way.
   let processEnv: any;
@@ -10,17 +13,10 @@ export function getApiBase(): string {
     processEnv = {};
   }
 
-  // Access import.meta.env only if present (Vite). In webpack it will be undefined.
-  let viteEnv: any = {};
-  try {
-    viteEnv = (import.meta as any)?.env || {};
-  } catch {
-    viteEnv = {};
-  }
   const windowInjected = (typeof window !== 'undefined' ? (window as any).__API_BASE_URL__ : undefined);
 
   const candidates = [
-  viteEnv?.VITE_API_BASE_URL,
+  typeof __APP_API_BASE__ !== 'undefined' && __APP_API_BASE__,
     windowInjected,
     processEnv.REACT_APP_API_BASE_URL,
     processEnv.API_BASE_URL
